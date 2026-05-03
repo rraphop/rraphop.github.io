@@ -75,10 +75,10 @@
               <button type="button" data-acid-mode="history">역사</button>
             </div>
           </div>
-          <p>항목을 선택한 뒤 떨어지는 용어를 입력하고 Enter를 누르세요. 용어가 바닥에 닿으면 생명이 줄어듭니다.</p>
+          <p>항목을 선택한 뒤 스페이스바로 시작하세요. 떨어지는 용어를 입력하고 Enter를 누르면 막을 수 있습니다.</p>
         </div>
         <div class="game-actions">
-          <button class="button primary small" type="button" data-acid-start>시작</button>
+          <button class="button primary small" type="button" data-acid-start>스페이스바 시작</button>
           <button class="button secondary small" type="button" data-acid-reset>초기화</button>
         </div>
       </div>
@@ -88,22 +88,29 @@
         <span>점수 <strong data-acid-score>0</strong></span>
         <span>생명 <strong data-acid-lives>5</strong></span>
         <span>단계 <strong data-acid-level>1</strong></span>
-        <span>생존시간 <strong data-acid-time>00:00</strong></span>
+        <span>생존시간 <strong data-acid-time>00:00.0</strong></span>
       </div>
 
       <div class="acid-arena" data-acid-arena aria-label="사회 용어 산성비 게임장">
-        <p class="acid-ready" data-acid-ready>시작 버튼을 누르면 사회 용어가 떨어집니다.</p>
+        <p class="acid-ready" data-acid-ready>스페이스바를 누르면 사회 용어가 떨어집니다.</p>
       </div>
 
       <form class="acid-input-row" data-acid-form>
-        <label for="acidPlayerName">이름</label>
-        <input id="acidPlayerName" type="text" autocomplete="name" maxlength="12" placeholder="이름" data-acid-player>
         <label for="acidAnswer">용어 입력</label>
         <input id="acidAnswer" type="text" autocomplete="off" placeholder="떨어지는 용어를 입력하세요" data-acid-answer disabled>
         <button class="button primary" type="submit" data-acid-submit disabled>입력</button>
       </form>
 
-      <div class="result-box" data-acid-result aria-live="polite"></div>
+      <div class="result-box acid-result-panel" data-acid-result aria-live="polite">
+        <div data-acid-result-summary></div>
+      </div>
+
+      <form class="acid-result-form acid-rank-panel" data-acid-rank-form hidden>
+        <label for="acidRankName">랭킹 이름</label>
+        <input id="acidRankName" type="text" autocomplete="name" maxlength="12" placeholder="이름 입력" data-acid-rank-name>
+        <button class="button primary small" type="submit" data-acid-rank-submit>랭킹 등록</button>
+        <p class="acid-rank-message" data-acid-rank-message aria-live="polite"></p>
+      </form>
 
       <section class="acid-ranking" aria-label="산성비 게임 랭킹">
         <h3>산성비 게임 랭킹</h3>

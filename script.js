@@ -42,6 +42,8 @@ function shuffle(items) {
 const visitorCounter = document.querySelector("#visitorCounter");
 const visitorStorageKey = "socialHistoryVisitors";
 const visitorSessionKey = "socialHistoryVisitorCountedDate";
+const visitorCountBaseSize = 1.16;
+const visitorCountMinSize = 0.62;
 
 function getVisitorDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -68,6 +70,28 @@ function saveVisitorData(data) {
   } catch {
     // 방문자 카운터는 저장소 접근이 제한된 환경에서도 화면 렌더링은 유지합니다.
   }
+}
+
+function fitVisitorCountElement(element) {
+  if (!element) return;
+
+  const countRow = element.closest("dd");
+  if (!countRow || countRow.clientWidth <= 0) return;
+
+  let fontSize = visitorCountBaseSize;
+  element.style.fontSize = `${fontSize}rem`;
+
+  while (countRow.scrollWidth > countRow.clientWidth + 1 && fontSize > visitorCountMinSize) {
+    fontSize = Math.max(visitorCountMinSize, fontSize - 0.06);
+    element.style.fontSize = `${fontSize.toFixed(2)}rem`;
+  }
+}
+
+function fitVisitorCounts() {
+  if (!visitorCounter) return;
+  visitorCounter
+    .querySelectorAll("[data-visitor-today], [data-visitor-total]")
+    .forEach(fitVisitorCountElement);
 }
 
 function updateVisitorCounter() {
@@ -98,9 +122,11 @@ function updateVisitorCounter() {
   const totalElement = visitorCounter.querySelector("[data-visitor-total]");
   if (todayElement) todayElement.textContent = todayCount.toLocaleString("ko-KR");
   if (totalElement) totalElement.textContent = totalCount.toLocaleString("ko-KR");
+  requestAnimationFrame(fitVisitorCounts);
 }
 
 updateVisitorCounter();
+window.addEventListener("resize", fitVisitorCounts);
 
 const subjectSelect = document.querySelector("#subjectSelect");
 const unitSelect = document.querySelector("#unitSelect");
@@ -636,7 +662,8 @@ function formatAcidTime(milliseconds) {
   const totalSeconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  const tenths = Math.floor((milliseconds % 1000) / 100);
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
 }
 
 function createAcidState() {
@@ -651,6 +678,7 @@ function createAcidState() {
     nextDropAt: 0,
     lastFrameAt: 0,
     animationId: null,
+    timerId: null,
     rankingSaved: false
   };
 }
@@ -659,7 +687,6 @@ function initAcidRainGame(root) {
   const acidArena = root.querySelector("[data-acid-arena]");
   const acidReady = root.querySelector("[data-acid-ready]");
   const acidForm = root.querySelector("[data-acid-form]");
-  const acidPlayer = root.querySelector("[data-acid-player]");
   const acidAnswer = root.querySelector("[data-acid-answer]");
   const acidSubmit = root.querySelector("[data-acid-submit]");
   const acidScore = root.querySelector("[data-acid-score]");
@@ -667,6 +694,11 @@ function initAcidRainGame(root) {
   const acidLevel = root.querySelector("[data-acid-level]");
   const acidTime = root.querySelector("[data-acid-time]");
   const acidResult = root.querySelector("[data-acid-result]");
+  const acidResultSummary = root.querySelector("[data-acid-result-summary]");
+  const acidRankForm = root.querySelector("[data-acid-rank-form]");
+  const acidRankName = root.querySelector("[data-acid-rank-name]");
+  const acidRankSubmit = root.querySelector("[data-acid-rank-submit]");
+  const acidRankMessage = root.querySelector("[data-acid-rank-message]");
   const acidRankings = root.querySelector("[data-acid-rankings]");
   const startAcidRain = root.querySelector("[data-acid-start]");
   const resetAcidRain = root.querySelector("[data-acid-reset]");
@@ -682,7 +714,7 @@ function initAcidRainGame(root) {
   let acidState = createAcidState();
 
   function getReadyMessage() {
-    return `시작 버튼을 누르면 ${getAcidTermLabel(currentTermGroup)}가 떨어집니다.`;
+    return `스페이스바를 누르면 ${getAcidTermLabel(currentTermGroup)}가 떨어집니다.`;
   }
 
   function syncAcidModeUI() {
@@ -726,8 +758,8 @@ function initAcidRainGame(root) {
     }));
   }
 
-  function getPlayerName() {
-    const name = (acidPlayer?.value || "").trim();
+  function getPlayerName(value) {
+    const name = String(value || "").trim();
     return name || "익명";
   }
 
@@ -773,18 +805,23 @@ function initAcidRainGame(root) {
     `;
   }
 
-  function saveAcidRanking() {
-    if (acidState.rankingSaved) return;
+  function saveAcidRanking(name) {
+    if (acidState.rankingSaved) return null;
     acidState.rankingSaved = true;
     const rankings = getStoredRankings();
-    rankings[currentTermGroup].push({
-      name: getPlayerName().slice(0, 12),
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: getPlayerName(name).slice(0, 12),
       score: acidState.score,
       level: acidState.level,
       survivalMs: acidState.elapsedMs,
       createdAt: Date.now()
-    });
+    };
+    rankings[currentTermGroup].push(entry);
+    rankings[currentTermGroup] = sortAcidRankings(rankings[currentTermGroup]).slice(0, 10);
     saveStoredRankings(rankings);
+    const rankIndex = rankings[currentTermGroup].findIndex((item) => item.id === entry.id);
+    return rankIndex >= 0 ? rankIndex + 1 : null;
   }
 
   function changeAcidMode(termGroup) {
@@ -803,8 +840,21 @@ function initAcidRainGame(root) {
     if (acidTime) acidTime.textContent = formatAcidTime(acidState.elapsedMs);
   }
 
-  function resetAcidGame(message = getReadyMessage()) {
+  function updateAcidElapsedTime() {
+    if (!acidState.running || !acidState.startedAt) return;
+    acidState.elapsedMs = performance.now() - acidState.startedAt;
+    updateAcidStatus();
+  }
+
+  function stopAcidTimers() {
     if (acidState.animationId) cancelAnimationFrame(acidState.animationId);
+    if (acidState.timerId) clearInterval(acidState.timerId);
+    acidState.animationId = null;
+    acidState.timerId = null;
+  }
+
+  function resetAcidGame(message = getReadyMessage()) {
+    stopAcidTimers();
     acidState = createAcidState();
     acidArena.querySelectorAll(".acid-drop").forEach((item) => item.remove());
     acidReady.textContent = message;
@@ -812,9 +862,15 @@ function initAcidRainGame(root) {
     acidAnswer.value = "";
     acidAnswer.disabled = true;
     acidSubmit.disabled = true;
-    if (acidPlayer) acidPlayer.disabled = false;
     acidResult.classList.remove("show");
-    acidResult.textContent = "";
+    if (acidResultSummary) acidResultSummary.textContent = "";
+    if (acidRankName) {
+      acidRankName.value = "";
+      acidRankName.disabled = false;
+    }
+    if (acidRankSubmit) acidRankSubmit.disabled = false;
+    if (acidRankMessage) acidRankMessage.textContent = "";
+    if (acidRankForm) acidRankForm.hidden = true;
     updateAcidStatus();
   }
 
@@ -842,19 +898,26 @@ function initAcidRainGame(root) {
     if (acidState.startedAt) {
       acidState.elapsedMs = Math.max(acidState.elapsedMs, performance.now() - acidState.startedAt);
     }
-    if (acidState.animationId) cancelAnimationFrame(acidState.animationId);
+    stopAcidTimers();
     acidAnswer.disabled = true;
     acidSubmit.disabled = true;
-    if (acidPlayer) acidPlayer.disabled = false;
     updateAcidStatus();
-    saveAcidRanking();
-    renderAcidRankings();
     acidResult.classList.add("show");
-    acidResult.innerHTML = `
-      <p>게임 종료: ${getPlayerName()} 님이 ${acidState.score}점을 획득했습니다.</p>
-      <p>단계 ${acidState.level}, 생존시간 ${formatAcidTime(acidState.elapsedMs)} 기록이 ${getAcidRankingTitle(currentTermGroup)}에 반영되었습니다.</p>
+    if (acidResultSummary) {
+      acidResultSummary.innerHTML = `
+      <p>게임 종료: ${acidState.score}점을 획득했습니다.</p>
+      <p>단계 ${acidState.level}, 생존시간 ${formatAcidTime(acidState.elapsedMs)}</p>
       <p>${acidState.score >= 120 ? `${termLabel} 반응 속도가 좋습니다.` : "다시 시작해서 더 많은 용어를 막아 보세요."}</p>
-    `;
+      `;
+    }
+    if (acidRankName) {
+      acidRankName.value = "";
+      acidRankName.disabled = false;
+      acidRankName.focus();
+    }
+    if (acidRankSubmit) acidRankSubmit.disabled = false;
+    if (acidRankMessage) acidRankMessage.textContent = "";
+    if (acidRankForm) acidRankForm.hidden = false;
   }
 
   function updateAcidFrame(timestamp) {
@@ -863,7 +926,8 @@ function initAcidRainGame(root) {
     if (!acidState.lastFrameAt) acidState.lastFrameAt = timestamp;
     const delta = Math.min((timestamp - acidState.lastFrameAt) / 1000, 0.05);
     acidState.lastFrameAt = timestamp;
-    acidState.elapsedMs = timestamp - acidState.startedAt;
+    acidState.elapsedMs = performance.now() - acidState.startedAt;
+    updateAcidStatus();
 
     if (timestamp >= acidState.nextDropAt) {
       createAcidDrop();
@@ -892,6 +956,7 @@ function initAcidRainGame(root) {
   }
 
   function startAcidGame() {
+    if (acidState.running) return;
     if (termBank.length === 0) {
       resetAcidGame(`${getAcidTermLabel(currentTermGroup)} 은행을 불러오지 못했습니다.`);
       return;
@@ -902,9 +967,10 @@ function initAcidRainGame(root) {
     acidReady.hidden = true;
     acidAnswer.disabled = false;
     acidSubmit.disabled = false;
-    if (acidPlayer) acidPlayer.disabled = true;
     acidAnswer.focus();
     acidState.nextDropAt = acidState.startedAt;
+    acidState.timerId = setInterval(updateAcidElapsedTime, 250);
+    updateAcidElapsedTime();
     acidState.animationId = requestAnimationFrame(updateAcidFrame);
   }
 
@@ -925,6 +991,27 @@ function initAcidRainGame(root) {
     acidAnswer.value = "";
   }
 
+  function handleAcidRankSubmit(event) {
+    event.preventDefault();
+    const savedRank = saveAcidRanking(acidRankName?.value);
+    renderAcidRankings();
+    const rankingMessage = savedRank
+      ? `${getAcidRankingTitle(currentTermGroup)} ${savedRank}위에 등록되었습니다.`
+      : `${getAcidRankingTitle(currentTermGroup)} 상위 10위에는 들지 못했습니다.`;
+
+    if (acidRankName) acidRankName.disabled = true;
+    if (acidRankSubmit) acidRankSubmit.disabled = true;
+    if (acidRankMessage) acidRankMessage.textContent = rankingMessage;
+  }
+
+  function handleAcidKeydown(event) {
+    const activeElement = document.activeElement;
+    const isTyping = activeElement?.matches("input, textarea, select");
+    if (event.code !== "Space" || isTyping || !root.classList.contains("active")) return;
+    event.preventDefault();
+    startAcidGame();
+  }
+
   if (acidArena && acidForm) {
     syncAcidModeUI();
     resetAcidGame();
@@ -937,6 +1024,8 @@ function initAcidRainGame(root) {
     startAcidRain.addEventListener("click", startAcidGame);
     resetAcidRain.addEventListener("click", () => resetAcidGame());
     acidForm.addEventListener("submit", handleAcidAnswer);
+    acidRankForm?.addEventListener("submit", handleAcidRankSubmit);
+    document.addEventListener("keydown", handleAcidKeydown);
   }
 }
 
