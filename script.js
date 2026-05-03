@@ -39,6 +39,69 @@ function shuffle(items) {
     .map(({ item }) => item);
 }
 
+const visitorCounter = document.querySelector("#visitorCounter");
+const visitorStorageKey = "socialHistoryVisitors";
+const visitorSessionKey = "socialHistoryVisitorCountedDate";
+
+function getVisitorDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getVisitorData() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(visitorStorageKey) || "{}");
+    return {
+      total: Number(saved.total) || 0,
+      byDate: saved.byDate && typeof saved.byDate === "object" ? saved.byDate : {}
+    };
+  } catch {
+    return { total: 0, byDate: {} };
+  }
+}
+
+function saveVisitorData(data) {
+  try {
+    localStorage.setItem(visitorStorageKey, JSON.stringify(data));
+  } catch {
+    // 방문자 카운터는 저장소 접근이 제한된 환경에서도 화면 렌더링은 유지합니다.
+  }
+}
+
+function updateVisitorCounter() {
+  if (!visitorCounter) return;
+
+  const todayKey = getVisitorDateKey();
+  const data = getVisitorData();
+  let shouldCountVisit = true;
+
+  try {
+    shouldCountVisit = sessionStorage.getItem(visitorSessionKey) !== todayKey;
+    if (shouldCountVisit) sessionStorage.setItem(visitorSessionKey, todayKey);
+  } catch {
+    shouldCountVisit = true;
+  }
+
+  if (!data.byDate[todayKey]) shouldCountVisit = true;
+
+  if (shouldCountVisit) {
+    data.total += 1;
+    data.byDate[todayKey] = (Number(data.byDate[todayKey]) || 0) + 1;
+    saveVisitorData(data);
+  }
+
+  const todayCount = Number(data.byDate[todayKey]) || 0;
+  const totalCount = Number(data.total) || 0;
+  const todayElement = visitorCounter.querySelector("[data-visitor-today]");
+  const totalElement = visitorCounter.querySelector("[data-visitor-total]");
+  if (todayElement) todayElement.textContent = todayCount.toLocaleString("ko-KR");
+  if (totalElement) totalElement.textContent = totalCount.toLocaleString("ko-KR");
+}
+
+updateVisitorCounter();
+
 const subjectSelect = document.querySelector("#subjectSelect");
 const unitSelect = document.querySelector("#unitSelect");
 const startQuizButton = document.querySelector("#startQuiz");
@@ -102,17 +165,30 @@ function createQuestionPool(unit) {
   ));
 }
 
+function getAvailableQuizSubjects() {
+  if (typeof QUIZ_BANK === "undefined") return [];
+  const filter = subjectSelect?.dataset.subjectFilter || "all";
+  if (filter === "social") {
+    return QUIZ_BANK.filter((subject) => subject.id.startsWith("social"));
+  }
+  if (filter === "history") {
+    return QUIZ_BANK.filter((subject) => subject.id.startsWith("history"));
+  }
+  return QUIZ_BANK;
+}
+
 function populateSubjects() {
   if (!subjectSelect || typeof QUIZ_BANK === "undefined") return;
 
-  subjectSelect.innerHTML = QUIZ_BANK.map((subject) => (
+  const subjects = getAvailableQuizSubjects();
+  subjectSelect.innerHTML = subjects.map((subject) => (
     `<option value="${subject.id}">${subject.title}</option>`
   )).join("");
   populateUnits();
 }
 
 function populateUnits() {
-  const subject = QUIZ_BANK.find((item) => item.id === subjectSelect.value);
+  const subject = getAvailableQuizSubjects().find((item) => item.id === subjectSelect.value);
   if (!subject) return;
 
   unitSelect.innerHTML = subject.units.map((unit) => (
@@ -123,7 +199,7 @@ function populateUnits() {
 }
 
 function getSelectedUnit() {
-  const subject = QUIZ_BANK.find((item) => item.id === subjectSelect.value);
+  const subject = getAvailableQuizSubjects().find((item) => item.id === subjectSelect.value);
   const unit = subject.units.find((item) => item.id === unitSelect.value);
   return { subject, unit };
 }
@@ -370,19 +446,39 @@ const gameChoices = document.querySelectorAll("[data-game-choice]");
 const gamePanels = document.querySelectorAll("[data-game-panel]");
 let timelineMode = "korean";
 
-function showGamePanel(gameName) {
+function showGamePanel(gameName, updateHash = false) {
   gameChoices.forEach((button) => {
     button.classList.toggle("active", button.dataset.gameChoice === gameName);
   });
   gamePanels.forEach((panel) => {
     panel.classList.toggle("active", panel.dataset.gamePanel === gameName);
   });
+  if (updateHash) {
+    const panel = document.querySelector(`[data-game-panel="${gameName}"]`);
+    if (panel?.id) history.replaceState(null, "", `#${panel.id}`);
+  }
 }
 
 if (gameChoices.length > 0) {
   gameChoices.forEach((button) => {
-    button.addEventListener("click", () => showGamePanel(button.dataset.gameChoice));
+    button.addEventListener("click", () => showGamePanel(button.dataset.gameChoice, true));
   });
+
+  const hashTarget = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
+  const panelAliases = {
+    socialAcidRainGame: "acid",
+    historyAcidRainGame: "acid",
+    "social-acid": "acid",
+    "history-acid": "acid"
+  };
+  const requestedPanel = hashTarget
+    ? document.getElementById(hashTarget)
+    : null;
+  if (requestedPanel?.dataset.gamePanel) {
+    showGamePanel(requestedPanel.dataset.gamePanel);
+  } else if (panelAliases[hashTarget]) {
+    showGamePanel(panelAliases[hashTarget]);
+  }
 }
 
 function renderTimeline() {
@@ -489,172 +585,374 @@ const socialTerms = [
   "다국적 기업", "도시화", "환경 문제", "지속가능한 발전", "문화", "사회화"
 ];
 
-const acidArena = document.querySelector("#acidArena");
-const acidReady = document.querySelector("#acidReady");
-const acidForm = document.querySelector("#acidForm");
-const acidAnswer = document.querySelector("#acidAnswer");
-const acidSubmit = document.querySelector("#acidSubmit");
-const acidScore = document.querySelector("#acidScore");
-const acidLives = document.querySelector("#acidLives");
-const acidLevel = document.querySelector("#acidLevel");
-const acidResult = document.querySelector("#acidResult");
-const startAcidRain = document.querySelector("#startAcidRain");
-const resetAcidRain = document.querySelector("#resetAcidRain");
-
-let acidState = {
-  running: false,
-  score: 0,
-  lives: 5,
-  level: 1,
-  terms: [],
-  nextDropAt: 0,
-  lastFrameAt: 0,
-  animationId: null
-};
+const historyTerms = [
+  "사료", "연표", "문명", "농경", "도시 국가", "왕권", "제국", "불교",
+  "크리스트교", "이슬람교", "봉건제", "비잔티움 제국", "몽골 제국",
+  "실크로드", "르네상스", "신항로 개척", "제국주의", "민족주의",
+  "시민 혁명", "산업 혁명", "국민 국가", "제1차 세계 대전", "전체주의",
+  "대공황", "제2차 세계 대전", "국제 연합", "냉전", "탈냉전", "고조선",
+  "삼국", "통일 신라", "발해", "고려", "조선", "훈민정음", "실학",
+  "동학 농민 운동", "3·1 운동", "대한민국 정부 수립"
+];
 
 function normalizedTerm(value) {
   return normalizeAnswer(value);
 }
 
-function updateAcidStatus() {
-  if (!acidScore) return;
-  acidScore.textContent = acidState.score;
-  acidLives.textContent = acidState.lives;
-  acidLevel.textContent = acidState.level;
+function uniqueTerms(terms) {
+  const seen = new Set();
+  return terms.filter((term) => {
+    const key = normalizedTerm(term);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
-function clearAcidTerms() {
-  acidState.terms.forEach((term) => term.element.remove());
-  acidState.terms = [];
+function termsFromQuizBank(subjectPrefix, fallbackTerms) {
+  if (typeof QUIZ_BANK === "undefined") return fallbackTerms;
+  const terms = QUIZ_BANK
+    .filter((subject) => subject.id.startsWith(subjectPrefix))
+    .flatMap((subject) => subject.units)
+    .flatMap((unit) => unit.terms)
+    .map(([term]) => term);
+  return uniqueTerms(terms.length ? terms : fallbackTerms);
 }
 
-function resetAcidGame(message = "시작 버튼을 누르면 사회 용어가 떨어집니다.") {
-  if (!acidArena) return;
-  if (acidState.animationId) cancelAnimationFrame(acidState.animationId);
-  acidState = {
+function getAcidTermBank(termGroup) {
+  if (termGroup === "history") return termsFromQuizBank("history", historyTerms);
+  return termsFromQuizBank("social", socialTerms);
+}
+
+function getAcidTermLabel(termGroup) {
+  return termGroup === "history" ? "역사 용어" : "사회 용어";
+}
+
+function getAcidRankingTitle(termGroup) {
+  return termGroup === "history" ? "역사 산성비 랭킹" : "사회 산성비 랭킹";
+}
+
+function formatAcidTime(milliseconds) {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function createAcidState() {
+  return {
     running: false,
     score: 0,
     lives: 5,
     level: 1,
+    elapsedMs: 0,
+    startedAt: 0,
     terms: [],
     nextDropAt: 0,
     lastFrameAt: 0,
-    animationId: null
+    animationId: null,
+    rankingSaved: false
   };
-  acidArena.querySelectorAll(".acid-drop").forEach((item) => item.remove());
-  acidReady.textContent = message;
-  acidReady.hidden = false;
-  acidAnswer.value = "";
-  acidAnswer.disabled = true;
-  acidSubmit.disabled = true;
-  acidResult.classList.remove("show");
-  acidResult.textContent = "";
-  updateAcidStatus();
 }
 
-function createAcidDrop() {
-  const term = socialTerms[Math.floor(Math.random() * socialTerms.length)];
-  const element = document.createElement("button");
-  const left = 4 + Math.random() * 76;
-  element.type = "button";
-  element.className = "acid-drop";
-  element.textContent = term;
-  element.style.left = `${left}%`;
-  element.style.top = "0px";
-  acidArena.appendChild(element);
-  acidState.terms.push({
-    term,
-    element,
-    y: 0,
-    speed: 32 + acidState.level * 10 + Math.random() * 18
-  });
-}
+function initAcidRainGame(root) {
+  const acidArena = root.querySelector("[data-acid-arena]");
+  const acidReady = root.querySelector("[data-acid-ready]");
+  const acidForm = root.querySelector("[data-acid-form]");
+  const acidPlayer = root.querySelector("[data-acid-player]");
+  const acidAnswer = root.querySelector("[data-acid-answer]");
+  const acidSubmit = root.querySelector("[data-acid-submit]");
+  const acidScore = root.querySelector("[data-acid-score]");
+  const acidLives = root.querySelector("[data-acid-lives]");
+  const acidLevel = root.querySelector("[data-acid-level]");
+  const acidTime = root.querySelector("[data-acid-time]");
+  const acidResult = root.querySelector("[data-acid-result]");
+  const acidRankings = root.querySelector("[data-acid-rankings]");
+  const startAcidRain = root.querySelector("[data-acid-start]");
+  const resetAcidRain = root.querySelector("[data-acid-reset]");
+  const acidTitle = root.querySelector("[data-acid-title]");
+  const acidModeStatus = root.querySelector("[data-acid-mode-status]");
+  const acidModeButtons = root.querySelectorAll("[data-acid-mode]");
+  const rankingStorageKey = "socialHistoryAcidRainRankings";
+  const hashTarget = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
+  let currentTermGroup = hashTarget.toLowerCase().includes("history")
+    ? "history"
+    : root.dataset.acidTerms || "social";
+  let termBank = getAcidTermBank(currentTermGroup);
+  let acidState = createAcidState();
 
-function endAcidGame() {
-  acidState.running = false;
-  if (acidState.animationId) cancelAnimationFrame(acidState.animationId);
-  acidAnswer.disabled = true;
-  acidSubmit.disabled = true;
-  acidResult.classList.add("show");
-  acidResult.innerHTML = `
-    <p>게임 종료: ${acidState.score}점을 획득했습니다.</p>
-    <p>${acidState.score >= 120 ? "사회 용어 반응 속도가 좋습니다." : "다시 시작해서 더 많은 용어를 막아 보세요."}</p>
-  `;
-}
-
-function updateAcidFrame(timestamp) {
-  if (!acidState.running) return;
-
-  if (!acidState.lastFrameAt) acidState.lastFrameAt = timestamp;
-  const delta = Math.min((timestamp - acidState.lastFrameAt) / 1000, 0.05);
-  acidState.lastFrameAt = timestamp;
-
-  if (timestamp >= acidState.nextDropAt) {
-    createAcidDrop();
-    acidState.nextDropAt = timestamp + Math.max(750, 1600 - acidState.level * 120);
+  function getReadyMessage() {
+    return `시작 버튼을 누르면 ${getAcidTermLabel(currentTermGroup)}가 떨어집니다.`;
   }
 
-  const arenaHeight = acidArena.clientHeight;
-  acidState.terms = acidState.terms.filter((item) => {
-    item.y += item.speed * delta;
-    item.element.style.top = `${item.y}px`;
-    if (item.y > arenaHeight - 42) {
-      item.element.remove();
-      acidState.lives -= 1;
-      updateAcidStatus();
-      return false;
+  function syncAcidModeUI() {
+    const termLabel = getAcidTermLabel(currentTermGroup);
+    root.dataset.acidTerms = currentTermGroup;
+    if (acidTitle) acidTitle.textContent = `${termLabel} 산성비 게임`;
+    if (acidModeStatus) acidModeStatus.textContent = currentTermGroup === "history" ? "역사" : "사회";
+    if (acidArena) acidArena.setAttribute("aria-label", `${termLabel} 산성비 게임장`);
+    acidModeButtons.forEach((button) => {
+      const isActive = button.dataset.acidMode === currentTermGroup;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+  }
+
+  function getStoredRankings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(rankingStorageKey) || "{}");
+      return {
+        social: Array.isArray(saved.social) ? saved.social : [],
+        history: Array.isArray(saved.history) ? saved.history : []
+      };
+    } catch (error) {
+      return { social: [], history: [] };
     }
-    return true;
-  });
-
-  if (acidState.lives <= 0) {
-    endAcidGame();
-    return;
   }
 
-  acidState.animationId = requestAnimationFrame(updateAcidFrame);
-}
+  function sortAcidRankings(entries) {
+    return [...entries].sort((a, b) => (
+      Number(b.score || 0) - Number(a.score || 0)
+      || Number(b.level || 0) - Number(a.level || 0)
+      || Number(b.survivalMs || 0) - Number(a.survivalMs || 0)
+      || Number(a.createdAt || 0) - Number(b.createdAt || 0)
+    ));
+  }
 
-function startAcidGame() {
-  if (!acidArena) return;
-  resetAcidGame("");
-  acidState.running = true;
-  acidReady.hidden = true;
-  acidAnswer.disabled = false;
-  acidSubmit.disabled = false;
-  acidAnswer.focus();
-  acidState.nextDropAt = performance.now();
-  acidState.animationId = requestAnimationFrame(updateAcidFrame);
-}
+  function saveStoredRankings(rankings) {
+    localStorage.setItem(rankingStorageKey, JSON.stringify({
+      social: sortAcidRankings(rankings.social).slice(0, 10),
+      history: sortAcidRankings(rankings.history).slice(0, 10)
+    }));
+  }
 
-function handleAcidAnswer(event) {
-  event.preventDefault();
-  if (!acidState.running) return;
-  const answer = normalizedTerm(acidAnswer.value);
-  if (!answer) return;
+  function getPlayerName() {
+    const name = (acidPlayer?.value || "").trim();
+    return name || "익명";
+  }
 
-  const hitIndex = acidState.terms.findIndex((item) => normalizedTerm(item.term) === answer);
-  if (hitIndex >= 0) {
-    const [hit] = acidState.terms.splice(hitIndex, 1);
-    hit.element.remove();
-    acidState.score += 10;
-    acidState.level = Math.min(9, Math.floor(acidState.score / 50) + 1);
+  function renderRankingTable(termGroup, entries) {
+    const sortedEntries = sortAcidRankings(entries).slice(0, 10);
+    const rows = sortedEntries.length > 0
+      ? sortedEntries.map((entry, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${escapeHTML(entry.name || "익명")}</td>
+            <td>${Number(entry.score || 0)}</td>
+            <td>${Number(entry.level || 1)}</td>
+            <td>${formatAcidTime(Number(entry.survivalMs || 0))}</td>
+          </tr>
+        `).join("")
+      : '<tr><td colspan="5">아직 등록된 기록이 없습니다.</td></tr>';
+
+    return `
+      <section class="acid-ranking-board ${termGroup === currentTermGroup ? "active" : ""}">
+        <h4>${getAcidRankingTitle(termGroup)}</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>순위</th>
+              <th>이름</th>
+              <th>점수</th>
+              <th>단계</th>
+              <th>생존시간</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </section>
+    `;
+  }
+
+  function renderAcidRankings() {
+    if (!acidRankings) return;
+    const rankings = getStoredRankings();
+    acidRankings.innerHTML = `
+      ${renderRankingTable("social", rankings.social)}
+      ${renderRankingTable("history", rankings.history)}
+    `;
+  }
+
+  function saveAcidRanking() {
+    if (acidState.rankingSaved) return;
+    acidState.rankingSaved = true;
+    const rankings = getStoredRankings();
+    rankings[currentTermGroup].push({
+      name: getPlayerName().slice(0, 12),
+      score: acidState.score,
+      level: acidState.level,
+      survivalMs: acidState.elapsedMs,
+      createdAt: Date.now()
+    });
+    saveStoredRankings(rankings);
+  }
+
+  function changeAcidMode(termGroup) {
+    if (!["social", "history"].includes(termGroup) || termGroup === currentTermGroup) return;
+    currentTermGroup = termGroup;
+    termBank = getAcidTermBank(currentTermGroup);
+    syncAcidModeUI();
+    resetAcidGame();
+    renderAcidRankings();
+  }
+
+  function updateAcidStatus() {
+    acidScore.textContent = acidState.score;
+    acidLives.textContent = acidState.lives;
+    acidLevel.textContent = acidState.level;
+    if (acidTime) acidTime.textContent = formatAcidTime(acidState.elapsedMs);
+  }
+
+  function resetAcidGame(message = getReadyMessage()) {
+    if (acidState.animationId) cancelAnimationFrame(acidState.animationId);
+    acidState = createAcidState();
+    acidArena.querySelectorAll(".acid-drop").forEach((item) => item.remove());
+    acidReady.textContent = message;
+    acidReady.hidden = false;
+    acidAnswer.value = "";
+    acidAnswer.disabled = true;
+    acidSubmit.disabled = true;
+    if (acidPlayer) acidPlayer.disabled = false;
+    acidResult.classList.remove("show");
+    acidResult.textContent = "";
     updateAcidStatus();
   }
-  acidAnswer.value = "";
+
+  function createAcidDrop() {
+    const term = termBank[Math.floor(Math.random() * termBank.length)];
+    const element = document.createElement("button");
+    const left = 4 + Math.random() * 76;
+    element.type = "button";
+    element.className = "acid-drop";
+    element.textContent = term;
+    element.style.left = `${left}%`;
+    element.style.top = "0px";
+    acidArena.appendChild(element);
+    acidState.terms.push({
+      term,
+      element,
+      y: 0,
+      speed: 32 + acidState.level * 10 + Math.random() * 18
+    });
+  }
+
+  function endAcidGame() {
+    const termLabel = getAcidTermLabel(currentTermGroup);
+    acidState.running = false;
+    if (acidState.startedAt) {
+      acidState.elapsedMs = Math.max(acidState.elapsedMs, performance.now() - acidState.startedAt);
+    }
+    if (acidState.animationId) cancelAnimationFrame(acidState.animationId);
+    acidAnswer.disabled = true;
+    acidSubmit.disabled = true;
+    if (acidPlayer) acidPlayer.disabled = false;
+    updateAcidStatus();
+    saveAcidRanking();
+    renderAcidRankings();
+    acidResult.classList.add("show");
+    acidResult.innerHTML = `
+      <p>게임 종료: ${getPlayerName()} 님이 ${acidState.score}점을 획득했습니다.</p>
+      <p>단계 ${acidState.level}, 생존시간 ${formatAcidTime(acidState.elapsedMs)} 기록이 ${getAcidRankingTitle(currentTermGroup)}에 반영되었습니다.</p>
+      <p>${acidState.score >= 120 ? `${termLabel} 반응 속도가 좋습니다.` : "다시 시작해서 더 많은 용어를 막아 보세요."}</p>
+    `;
+  }
+
+  function updateAcidFrame(timestamp) {
+    if (!acidState.running) return;
+
+    if (!acidState.lastFrameAt) acidState.lastFrameAt = timestamp;
+    const delta = Math.min((timestamp - acidState.lastFrameAt) / 1000, 0.05);
+    acidState.lastFrameAt = timestamp;
+    acidState.elapsedMs = timestamp - acidState.startedAt;
+
+    if (timestamp >= acidState.nextDropAt) {
+      createAcidDrop();
+      acidState.nextDropAt = timestamp + Math.max(750, 1600 - acidState.level * 120);
+    }
+
+    const arenaHeight = acidArena.clientHeight;
+    acidState.terms = acidState.terms.filter((item) => {
+      item.y += item.speed * delta;
+      item.element.style.top = `${item.y}px`;
+      if (item.y > arenaHeight - 42) {
+        item.element.remove();
+        acidState.lives -= 1;
+        updateAcidStatus();
+        return false;
+      }
+      return true;
+    });
+
+    if (acidState.lives <= 0) {
+      endAcidGame();
+      return;
+    }
+
+    acidState.animationId = requestAnimationFrame(updateAcidFrame);
+  }
+
+  function startAcidGame() {
+    if (termBank.length === 0) {
+      resetAcidGame(`${getAcidTermLabel(currentTermGroup)} 은행을 불러오지 못했습니다.`);
+      return;
+    }
+    resetAcidGame("");
+    acidState.running = true;
+    acidState.startedAt = performance.now();
+    acidReady.hidden = true;
+    acidAnswer.disabled = false;
+    acidSubmit.disabled = false;
+    if (acidPlayer) acidPlayer.disabled = true;
+    acidAnswer.focus();
+    acidState.nextDropAt = acidState.startedAt;
+    acidState.animationId = requestAnimationFrame(updateAcidFrame);
+  }
+
+  function handleAcidAnswer(event) {
+    event.preventDefault();
+    if (!acidState.running) return;
+    const answer = normalizedTerm(acidAnswer.value);
+    if (!answer) return;
+
+    const hitIndex = acidState.terms.findIndex((item) => normalizedTerm(item.term) === answer);
+    if (hitIndex >= 0) {
+      const [hit] = acidState.terms.splice(hitIndex, 1);
+      hit.element.remove();
+      acidState.score += 10;
+      acidState.level = Math.min(9, Math.floor(acidState.score / 50) + 1);
+      updateAcidStatus();
+    }
+    acidAnswer.value = "";
+  }
+
+  if (acidArena && acidForm) {
+    syncAcidModeUI();
+    resetAcidGame();
+    renderAcidRankings();
+    root.addEventListener("click", (event) => {
+      const modeButton = event.target.closest("[data-acid-mode]");
+      if (!modeButton || !root.contains(modeButton)) return;
+      changeAcidMode(modeButton.dataset.acidMode);
+    });
+    startAcidRain.addEventListener("click", startAcidGame);
+    resetAcidRain.addEventListener("click", () => resetAcidGame());
+    acidForm.addEventListener("submit", handleAcidAnswer);
+  }
 }
 
-if (acidArena && acidForm) {
-  resetAcidGame();
-  startAcidRain.addEventListener("click", startAcidGame);
-  resetAcidRain.addEventListener("click", () => resetAcidGame());
-  acidForm.addEventListener("submit", handleAcidAnswer);
-}
+document.querySelectorAll("[data-acid-game]").forEach(initAcidRainGame);
 
 const qnaForm = document.querySelector("#qnaForm");
 const questionBoard = document.querySelector("#questionBoard");
+const qnaBoardSection = document.querySelector("#qnaBoardSection");
+const questionDetail = document.querySelector("#questionDetail");
+const questionPagination = document.querySelector("#questionPagination");
+const questionCount = document.querySelector("#questionCount");
 const storageKey = "socialHistoryQuestions";
 const qnaAdminPassword = "teacher1234";
+const qnaPageSize = 10;
+let qnaCurrentPage = 1;
+let activeQuestionId = null;
 
 function getQuestions() {
   return JSON.parse(localStorage.getItem(storageKey) || "[]");
@@ -664,74 +962,183 @@ function saveQuestions(questions) {
   localStorage.setItem(storageKey, JSON.stringify(questions));
 }
 
-function renderQuestions() {
-  if (!questionBoard) return;
-  const questions = getQuestions();
-  if (questions.length === 0) {
-    questionBoard.innerHTML = '<p class="empty-state">아직 등록된 질문이 없습니다.</p>';
+function getQuestionId(item, index) {
+  return item.id || `legacy-question-${index}`;
+}
+
+function getQuestionTitle(item) {
+  if (item.private) return "비공개 질문입니다.";
+  const title = (item.text || "").replace(/\s+/g, " ").trim();
+  if (!title) return "제목 없는 질문";
+  return title.length > 68 ? `${title.slice(0, 68)}...` : title;
+}
+
+function formatQuestionDate(value) {
+  if (!value) return "작성일 미기재";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "작성일 미기재";
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+}
+
+function renderQuestionTools(item, index) {
+  return `
+    <div class="question-tools">
+      <details>
+        <summary>질문 수정</summary>
+        <form class="board-form edit-question-form" data-index="${index}">
+          <label>수정 비밀번호</label>
+          <input type="password" name="editPassword" placeholder="등록할 때 설정한 비밀번호" required>
+          <label>질문 내용 수정</label>
+          <textarea name="editText" rows="4" required>${escapeHTML(item.text || "")}</textarea>
+          <label class="anonymous-check">
+            <input type="checkbox" name="editPrivate" ${item.private ? "checked" : ""}>
+            비공개
+          </label>
+          <button class="button secondary small" type="submit">수정 저장</button>
+        </form>
+      </details>
+      <details>
+        <summary>관리자 답변</summary>
+        <form class="board-form admin-answer-form" data-index="${index}">
+          <label>관리자 비밀번호</label>
+          <input type="password" name="adminPassword" placeholder="관리자만 답변할 수 있습니다" required>
+          <label>답변 내용</label>
+          <textarea name="answerText" rows="4" required>${item.answer ? escapeHTML(item.answer) : ""}</textarea>
+          <button class="button primary small" type="submit">답변 저장</button>
+        </form>
+      </details>
+      <details>
+        <summary>관리자 삭제</summary>
+        <form class="board-form admin-delete-form" data-index="${index}">
+          <label>관리자 비밀번호</label>
+          <input type="password" name="deletePassword" placeholder="삭제 권한 확인" required>
+          <p class="delete-warning">삭제하면 이 질문과 답변은 게시판에서 사라집니다.</p>
+          <button class="button danger small" type="submit">질문 삭제</button>
+        </form>
+      </details>
+    </div>
+    <p class="board-message" data-message-index="${index}" aria-live="polite"></p>
+  `;
+}
+
+function renderQuestionDetail(questions) {
+  if (!questionDetail) return;
+
+  const selectedIndex = questions.findIndex((item, index) => getQuestionId(item, index) === activeQuestionId);
+  if (selectedIndex < 0) {
+    activeQuestionId = null;
+    questionDetail.hidden = true;
+    questionDetail.innerHTML = "";
     return;
   }
-  questionBoard.innerHTML = questions.map((item, index) => `
-    <article class="question-item">
+
+  const item = questions[selectedIndex];
+  const answerStatus = item.answer ? "답변 완료" : "답변 대기";
+  questionDetail.hidden = false;
+  questionDetail.innerHTML = `
+    <article class="question-detail-card">
+      <div class="question-detail-top">
+        <button class="button secondary small" type="button" data-back-to-list>목록으로</button>
+        <span class="answer-state ${item.answer ? "answered" : "pending"}">${answerStatus}</span>
+      </div>
       <div class="question-author">
         <span>소속: ${escapeHTML(item.affiliation || "미기재")}</span>
         <span>학년: ${escapeHTML(item.grade || "미기재")}</span>
         <span>이름: ${escapeHTML(item.name || "익명")}</span>
+        <span>${formatQuestionDate(item.createdAt)}</span>
       </div>
-      <p class="${item.private ? "private-question" : ""}">${item.private ? "비공개 질문입니다." : escapeHTML(item.text)}</p>
+      <div class="question-body">
+        <strong>질문</strong>
+        <p class="${item.private ? "private-question" : ""}">${item.private ? "비공개 질문입니다." : escapeHTML(item.text || "")}</p>
+      </div>
       <div class="answer-panel">
         <strong>답변</strong>
         <p>${item.answer ? escapeHTML(item.answer) : "아직 등록된 답변이 없습니다."}</p>
       </div>
-      <div class="question-tools">
-        <details>
-          <summary>질문 수정</summary>
-          <form class="board-form edit-question-form" data-index="${index}">
-            <label>수정 비밀번호</label>
-            <input type="password" name="editPassword" placeholder="등록할 때 설정한 비밀번호" required>
-            <label>질문 내용 수정</label>
-            <textarea name="editText" rows="4" required>${escapeHTML(item.text)}</textarea>
-            <label class="anonymous-check">
-              <input type="checkbox" name="editPrivate" ${item.private ? "checked" : ""}>
-              비공개
-            </label>
-            <button class="button secondary small" type="submit">수정 저장</button>
-          </form>
-        </details>
-        <details>
-          <summary>관리자 답변</summary>
-          <form class="board-form admin-answer-form" data-index="${index}">
-            <label>관리자 비밀번호</label>
-            <input type="password" name="adminPassword" placeholder="관리자만 답변할 수 있습니다" required>
-            <label>답변 내용</label>
-            <textarea name="answerText" rows="4" required>${item.answer ? escapeHTML(item.answer) : ""}</textarea>
-            <button class="button primary small" type="submit">답변 저장</button>
-          </form>
-        </details>
-        <details>
-          <summary>관리자 삭제</summary>
-          <form class="board-form admin-delete-form" data-index="${index}">
-            <label>관리자 비밀번호</label>
-            <input type="password" name="deletePassword" placeholder="삭제 권한 확인" required>
-            <p class="delete-warning">삭제하면 이 질문과 답변은 게시판에서 사라집니다.</p>
-            <button class="button danger small" type="submit">질문 삭제</button>
-          </form>
-        </details>
-      </div>
-      <p class="board-message" data-message-index="${index}" aria-live="polite"></p>
+      ${renderQuestionTools(item, selectedIndex)}
     </article>
-  `).join("");
+  `;
+}
+
+function renderQuestionPagination(totalPages) {
+  if (!questionPagination) return;
+  if (totalPages <= 1) {
+    questionPagination.innerHTML = "";
+    return;
+  }
+
+  questionPagination.innerHTML = Array.from({ length: totalPages }, (_, index) => {
+    const page = index + 1;
+    return `
+      <button type="button" data-qna-page="${page}" ${page === qnaCurrentPage ? 'aria-current="page"' : ""}>
+        ${page}
+      </button>
+    `;
+  }).join("");
+}
+
+function renderQuestions() {
+  if (!questionBoard) return;
+  const questions = getQuestions();
+  const totalPages = Math.max(1, Math.ceil(questions.length / qnaPageSize));
+  qnaCurrentPage = Math.min(Math.max(qnaCurrentPage, 1), totalPages);
+
+  if (questions.length === 0) {
+    if (questionCount) questionCount.textContent = "등록된 질문 0개";
+    if (questionDetail) {
+      questionDetail.hidden = true;
+      questionDetail.innerHTML = "";
+    }
+    if (questionPagination) questionPagination.innerHTML = "";
+    questionBoard.innerHTML = '<p class="empty-state">아직 등록된 질문이 없습니다.</p>';
+    return;
+  }
+
+  const startIndex = (qnaCurrentPage - 1) * qnaPageSize;
+  const pageQuestions = questions.slice(startIndex, startIndex + qnaPageSize);
+  const pageStart = startIndex + 1;
+  const pageEnd = startIndex + pageQuestions.length;
+
+  if (questionCount) {
+    questionCount.textContent = `총 ${questions.length}개 질문 · ${pageStart}-${pageEnd}번째 표시`;
+  }
+
+  renderQuestionDetail(questions);
+  renderQuestionPagination(totalPages);
+
+  questionBoard.innerHTML = pageQuestions.map((item, offset) => {
+    const index = startIndex + offset;
+    const questionId = getQuestionId(item, index);
+    const isActive = questionId === activeQuestionId;
+    return `
+      <article class="question-list-item ${isActive ? "selected" : ""}">
+        <button class="question-open" type="button" data-index="${index}" data-question-id="${escapeHTML(questionId)}" aria-expanded="${isActive}">
+          <span class="question-number">${questions.length - index}</span>
+          <span class="question-list-main">
+            <strong>${escapeHTML(getQuestionTitle(item))}</strong>
+            <small>${escapeHTML(item.name || "익명")} · ${formatQuestionDate(item.createdAt)}</small>
+          </span>
+          <span class="answer-state ${item.answer ? "answered" : "pending"}">${item.answer ? "답변 완료" : "답변 대기"}</span>
+        </button>
+      </article>
+    `;
+  }).join("");
 }
 
 function showBoardMessage(index, message, type = "info") {
-  const messageBox = questionBoard.querySelector(`[data-message-index="${index}"]`);
+  const messageBox = (qnaBoardSection || questionBoard)?.querySelector(`[data-message-index="${index}"]`);
   if (!messageBox) return;
   messageBox.textContent = message;
   messageBox.className = `board-message ${type}`;
 }
 
-if (qnaForm) {
+if (qnaForm && questionBoard) {
   const anonymousCheckboxes = qnaForm.querySelectorAll("[data-anonymous-target]");
+  const qnaBoardContainer = qnaBoardSection || questionBoard;
 
   function syncAnonymousInputs() {
     anonymousCheckboxes.forEach((checkbox) => {
@@ -751,7 +1158,33 @@ if (qnaForm) {
 
   renderQuestions();
 
-  questionBoard.addEventListener("submit", (event) => {
+  qnaBoardContainer.addEventListener("click", (event) => {
+    const openButton = event.target.closest(".question-open");
+    const pageButton = event.target.closest("[data-qna-page]");
+
+    if (openButton) {
+      activeQuestionId = openButton.dataset.questionId;
+      renderQuestions();
+      questionDetail?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (pageButton) {
+      qnaCurrentPage = Number(pageButton.dataset.qnaPage);
+      activeQuestionId = null;
+      renderQuestions();
+      questionBoard.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (event.target.closest("[data-back-to-list]")) {
+      activeQuestionId = null;
+      renderQuestions();
+      questionBoard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+
+  qnaBoardContainer.addEventListener("submit", (event) => {
     const editForm = event.target.closest(".edit-question-form");
     const answerForm = event.target.closest(".admin-answer-form");
     const deleteForm = event.target.closest(".admin-delete-form");
@@ -768,12 +1201,12 @@ if (qnaForm) {
 
     if (editForm) {
       const savedPassword = item.password || "";
-      const inputPassword = formData.get("editPassword").toString();
+      const inputPassword = String(formData.get("editPassword") || "");
       if (!savedPassword || inputPassword !== savedPassword) {
         showBoardMessage(index, "수정 비밀번호가 맞지 않습니다.", "error");
         return;
       }
-      item.text = formData.get("editText").toString().trim();
+      item.text = String(formData.get("editText") || "").trim();
       item.private = Boolean(formData.get("editPrivate"));
       saveQuestions(questions);
       renderQuestions();
@@ -781,24 +1214,25 @@ if (qnaForm) {
     }
 
     if (answerForm) {
-      const inputPassword = formData.get("adminPassword").toString();
+      const inputPassword = String(formData.get("adminPassword") || "");
       if (inputPassword !== qnaAdminPassword) {
         showBoardMessage(index, "관리자 비밀번호가 맞지 않습니다.", "error");
         return;
       }
-      item.answer = formData.get("answerText").toString().trim();
+      item.answer = String(formData.get("answerText") || "").trim();
       item.answeredAt = new Date().toISOString();
       saveQuestions(questions);
       renderQuestions();
     }
 
     if (deleteForm) {
-      const inputPassword = formData.get("deletePassword").toString();
+      const inputPassword = String(formData.get("deletePassword") || "");
       if (inputPassword !== qnaAdminPassword) {
         showBoardMessage(index, "관리자 비밀번호가 맞지 않습니다.", "error");
         return;
       }
       questions.splice(index, 1);
+      activeQuestionId = null;
       saveQuestions(questions);
       renderQuestions();
     }
@@ -809,16 +1243,16 @@ if (qnaForm) {
     const formData = new FormData(qnaForm);
     const affiliation = formData.get("anonymousAffiliation")
       ? "익명"
-      : formData.get("studentAffiliation").toString().trim() || "미기재";
+      : String(formData.get("studentAffiliation") || "").trim() || "미기재";
     const grade = formData.get("anonymousGrade")
       ? "익명"
-      : formData.get("studentGrade").toString().trim() || "미기재";
+      : String(formData.get("studentGrade") || "").trim() || "미기재";
     const name = formData.get("anonymousName")
       ? "익명"
-      : formData.get("studentName").toString().trim() || "익명";
-    const text = formData.get("questionText").toString().trim();
+      : String(formData.get("studentName") || "").trim() || "익명";
+    const text = String(formData.get("questionText") || "").trim();
     const privateQuestion = Boolean(formData.get("privateQuestion"));
-    const password = formData.get("questionPassword").toString();
+    const password = String(formData.get("questionPassword") || "");
     if (!text || !password) return;
     const questions = getQuestions();
     questions.unshift({
@@ -835,6 +1269,8 @@ if (qnaForm) {
     saveQuestions(questions);
     qnaForm.reset();
     syncAnonymousInputs();
+    qnaCurrentPage = 1;
+    activeQuestionId = null;
     renderQuestions();
   });
 }

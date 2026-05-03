@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>게임 | 사회·역사 배움터</title>
   <link rel="stylesheet" href="style.css">
+  <script defer src="quiz-data.js"></script>
   <script defer src="script.js"></script>
 </head>
 <body>
@@ -24,7 +25,7 @@
     <section class="page-heading">
       <p class="eyebrow">Learning Games</p>
       <h1>사회·역사 학습 게임</h1>
-      <p>역사 사건의 흐름을 익히는 연표 배열 게임과 사회 핵심 용어를 빠르게 입력하는 산성비 게임 중 하나를 선택하세요.</p>
+      <p>역사 연표 배열과 산성비 게임으로 사회·역사 핵심 개념을 반복 학습하세요.</p>
     </section>
 
     <section class="section game-picker" aria-label="게임 선택">
@@ -33,8 +34,8 @@
         <span>교과서 사건 은행에서 10개를 뽑아 시간순으로 배열합니다.</span>
       </button>
       <button class="game-choice" type="button" data-game-choice="acid">
-        <strong>사회 용어 산성비</strong>
-        <span>떨어지는 사회 용어를 정확히 입력해 막아냅니다.</span>
+        <strong>산성비 게임</strong>
+        <span>사회 또는 역사 항목을 선택한 뒤 떨어지는 용어를 입력합니다.</span>
       </button>
     </section>
 
@@ -64,35 +65,50 @@
       </details>
     </section>
 
-    <section class="section game-shell game-panel" id="acidRainGame" data-game-panel="acid">
+    <section class="section game-shell game-panel" id="acidRainGame" data-game-panel="acid" data-acid-game data-acid-terms="social">
       <div class="game-heading-row">
         <div>
-          <h2>사회 용어 산성비 게임</h2>
-          <p>떨어지는 용어를 입력하고 Enter를 누르세요. 용어가 바닥에 닿으면 생명이 줄어듭니다.</p>
+          <div class="timeline-title-row">
+            <h2 data-acid-title>사회 용어 산성비 게임</h2>
+            <div class="timeline-mode acid-mode" aria-label="산성비 항목 선택">
+              <button class="active" type="button" data-acid-mode="social">사회</button>
+              <button type="button" data-acid-mode="history">역사</button>
+            </div>
+          </div>
+          <p>항목을 선택한 뒤 떨어지는 용어를 입력하고 Enter를 누르세요. 용어가 바닥에 닿으면 생명이 줄어듭니다.</p>
         </div>
         <div class="game-actions">
-          <button class="button primary small" type="button" id="startAcidRain">시작</button>
-          <button class="button secondary small" type="button" id="resetAcidRain">초기화</button>
+          <button class="button primary small" type="button" data-acid-start>시작</button>
+          <button class="button secondary small" type="button" data-acid-reset>초기화</button>
         </div>
       </div>
 
       <div class="acid-status" aria-label="산성비 게임 상태">
-        <span>점수 <strong id="acidScore">0</strong></span>
-        <span>생명 <strong id="acidLives">5</strong></span>
-        <span>단계 <strong id="acidLevel">1</strong></span>
+        <span>항목 <strong data-acid-mode-status>사회</strong></span>
+        <span>점수 <strong data-acid-score>0</strong></span>
+        <span>생명 <strong data-acid-lives>5</strong></span>
+        <span>단계 <strong data-acid-level>1</strong></span>
+        <span>생존시간 <strong data-acid-time>00:00</strong></span>
       </div>
 
-      <div class="acid-arena" id="acidArena" aria-label="사회 용어 산성비 게임장">
-        <p class="acid-ready" id="acidReady">시작 버튼을 누르면 사회 용어가 떨어집니다.</p>
+      <div class="acid-arena" data-acid-arena aria-label="사회 용어 산성비 게임장">
+        <p class="acid-ready" data-acid-ready>시작 버튼을 누르면 사회 용어가 떨어집니다.</p>
       </div>
 
-      <form class="acid-input-row" id="acidForm">
+      <form class="acid-input-row" data-acid-form>
+        <label for="acidPlayerName">이름</label>
+        <input id="acidPlayerName" type="text" autocomplete="name" maxlength="12" placeholder="이름" data-acid-player>
         <label for="acidAnswer">용어 입력</label>
-        <input id="acidAnswer" type="text" autocomplete="off" placeholder="떨어지는 용어를 입력하세요" disabled>
-        <button class="button primary" type="submit" id="acidSubmit" disabled>입력</button>
+        <input id="acidAnswer" type="text" autocomplete="off" placeholder="떨어지는 용어를 입력하세요" data-acid-answer disabled>
+        <button class="button primary" type="submit" data-acid-submit disabled>입력</button>
       </form>
 
-      <div class="result-box" id="acidResult" aria-live="polite"></div>
+      <div class="result-box" data-acid-result aria-live="polite"></div>
+
+      <section class="acid-ranking" aria-label="산성비 게임 랭킹">
+        <h3>산성비 게임 랭킹</h3>
+        <div class="acid-ranking-grid" data-acid-rankings></div>
+      </section>
     </section>
   </main>
 

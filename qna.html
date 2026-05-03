@@ -76,7 +76,7 @@
 
         <button class="button primary" type="submit">질문 등록</button>
       </form>
-      <div>
+      <aside class="qna-faq" aria-label="자주 묻는 질문">
         <h2>자주 묻는 질문</h2>
         <details open>
           <summary>사회 과목과 역사 과목은 어떻게 연결되나요?</summary>
@@ -86,9 +86,20 @@
           <summary>연표를 외우는 가장 좋은 방법은 무엇인가요?</summary>
           <p>연도만 외우기보다 원인, 과정, 결과를 한 문장으로 연결해 보세요. 사건 사이의 흐름이 보이면 오래 기억됩니다.</p>
         </details>
-        <h2 class="posted-title">등록된 질문</h2>
-        <div id="questionBoard" class="question-board"></div>
+      </aside>
+    </section>
+
+    <section class="section qna-board-section" id="qnaBoardSection" aria-labelledby="postedQuestionsTitle">
+      <div class="qna-board-header">
+        <div>
+          <p class="eyebrow">Board</p>
+          <h2 id="postedQuestionsTitle">등록된 질문</h2>
+        </div>
+        <p id="questionCount" class="qna-board-summary" aria-live="polite"></p>
       </div>
+      <div id="questionDetail" class="question-detail" hidden></div>
+      <div id="questionBoard" class="question-board"></div>
+      <nav id="questionPagination" class="question-pagination" aria-label="질문 목록 페이지"></nav>
     </section>
   </main>
 
