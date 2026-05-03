@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>게임 | 사회·역사 배움터</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="brand-mark">中</span><span>사회·역사 배움터</span></a>
+    <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false">☰</button>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="intro.html">ABOUT</a>
+      <a href="quiz.html">퀴즈</a>
+      <a href="game.html">게임</a>
+      <a href="qna.html">질문과 답변</a>
+      <a href="curriculum.html">교육과정 안내</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="page-heading">
+      <p class="eyebrow">Learning Games</p>
+      <h1>사회·역사 학습 게임</h1>
+      <p>역사 사건의 흐름을 익히는 연표 배열 게임과 사회 핵심 용어를 빠르게 입력하는 산성비 게임 중 하나를 선택하세요.</p>
+    </section>
+
+    <section class="section game-picker" aria-label="게임 선택">
+      <button class="game-choice active" type="button" data-game-choice="timeline">
+        <strong>역사 연표 배열</strong>
+        <span>교과서 사건 은행에서 10개를 뽑아 시간순으로 배열합니다.</span>
+      </button>
+      <button class="game-choice" type="button" data-game-choice="acid">
+        <strong>사회 용어 산성비</strong>
+        <span>떨어지는 사회 용어를 정확히 입력해 막아냅니다.</span>
+      </button>
+    </section>
+
+    <section class="section game-shell game-panel active" id="timelineGame" data-game-panel="timeline">
+      <div class="game-heading-row">
+        <div>
+          <div class="timeline-title-row">
+            <h2>역사 연표 배열 게임</h2>
+            <div class="timeline-mode" aria-label="연표 범위 선택">
+              <button class="active" type="button" data-timeline-mode="korean">한국사</button>
+              <button type="button" data-timeline-mode="world">세계사</button>
+            </div>
+          </div>
+          <p>교과서 주요 역사 사건 중 10개가 무작위로 제시됩니다. 사건 카드를 오래된 순서에서 최근 순서로 배열하면 합격입니다.</p>
+        </div>
+        <div class="game-actions">
+          <button class="button secondary small" type="button" id="shuffleTimeline">새 10개 뽑기</button>
+          <button class="button primary small" type="button" id="checkTimeline">정답 확인</button>
+        </div>
+      </div>
+      <div class="timeline-status" id="timelineStatus" aria-live="polite"></div>
+      <ol class="timeline-list" id="timelineList"></ol>
+      <div class="result-box" id="timelineResult" aria-live="polite"></div>
+      <details class="timeline-bank">
+        <summary>교과서 역사 사건 은행 보기</summary>
+        <div id="timelineBankList" class="timeline-bank-list"></div>
+      </details>
+    </section>
+
+    <section class="section game-shell game-panel" id="acidRainGame" data-game-panel="acid">
+      <div class="game-heading-row">
+        <div>
+          <h2>사회 용어 산성비 게임</h2>
+          <p>떨어지는 용어를 입력하고 Enter를 누르세요. 용어가 바닥에 닿으면 생명이 줄어듭니다.</p>
+        </div>
+        <div class="game-actions">
+          <button class="button primary small" type="button" id="startAcidRain">시작</button>
+          <button class="button secondary small" type="button" id="resetAcidRain">초기화</button>
+        </div>
+      </div>
+
+      <div class="acid-status" aria-label="산성비 게임 상태">
+        <span>점수 <strong id="acidScore">0</strong></span>
+        <span>생명 <strong id="acidLives">5</strong></span>
+        <span>단계 <strong id="acidLevel">1</strong></span>
+      </div>
+
+      <div class="acid-arena" id="acidArena" aria-label="사회 용어 산성비 게임장">
+        <p class="acid-ready" id="acidReady">시작 버튼을 누르면 사회 용어가 떨어집니다.</p>
+      </div>
+
+      <form class="acid-input-row" id="acidForm">
+        <label for="acidAnswer">용어 입력</label>
+        <input id="acidAnswer" type="text" autocomplete="off" placeholder="떨어지는 용어를 입력하세요" disabled>
+        <button class="button primary" type="submit" id="acidSubmit" disabled>입력</button>
+      </form>
+
+      <div class="result-box" id="acidResult" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>사회·역사 배움터 | 중학교 수업 보조 학습용</p>
+  </footer>
+</body>
+</html>

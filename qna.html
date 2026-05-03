@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>질문과 답변 | 사회·역사 배움터</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="brand-mark">中</span><span>사회·역사 배움터</span></a>
+    <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false">☰</button>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="intro.html">ABOUT</a>
+      <a href="quiz.html">퀴즈</a>
+      <a href="game.html">게임</a>
+      <a href="qna.html">질문과 답변</a>
+      <a href="curriculum.html">교육과정 안내</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="page-heading">
+      <p class="eyebrow">Q&A</p>
+      <h1>질문과 답변</h1>
+      <p>궁금한 개념을 질문으로 남겨 보세요. 이 페이지의 질문은 브라우저에 임시 저장됩니다.</p>
+    </section>
+
+    <section class="section qna-layout">
+      <form class="qna-form" id="qnaForm">
+        <div class="qna-field">
+          <div class="qna-label-row">
+            <label for="studentAffiliation">소속</label>
+            <label class="anonymous-check">
+              <input type="checkbox" name="anonymousAffiliation" data-anonymous-target="studentAffiliation">
+              익명
+            </label>
+          </div>
+          <input id="studentAffiliation" name="studentAffiliation" type="text" placeholder="예: ○○중학교">
+        </div>
+
+        <div class="qna-field">
+          <div class="qna-label-row">
+            <label for="studentGrade">학년</label>
+            <label class="anonymous-check">
+              <input type="checkbox" name="anonymousGrade" data-anonymous-target="studentGrade">
+              익명
+            </label>
+          </div>
+          <input id="studentGrade" name="studentGrade" type="text" placeholder="예: 2학년">
+        </div>
+
+        <div class="qna-field">
+          <div class="qna-label-row">
+            <label for="studentName">이름</label>
+            <label class="anonymous-check">
+              <input type="checkbox" name="anonymousName" data-anonymous-target="studentName">
+              익명
+            </label>
+          </div>
+          <input id="studentName" name="studentName" type="text" placeholder="예: 민준">
+        </div>
+
+        <div class="qna-label-row">
+          <label for="questionText">질문 내용</label>
+          <label class="anonymous-check">
+            <input type="checkbox" name="privateQuestion">
+            비공개
+          </label>
+        </div>
+        <textarea id="questionText" name="questionText" rows="5" placeholder="예: 시민 혁명은 왜 근대 사회의 시작과 관련이 있나요?" required></textarea>
+
+        <label for="questionPassword">수정 비밀번호</label>
+        <input id="questionPassword" name="questionPassword" type="password" placeholder="나중에 질문을 수정할 때 사용합니다" required>
+
+        <button class="button primary" type="submit">질문 등록</button>
+      </form>
+      <div>
+        <h2>자주 묻는 질문</h2>
+        <details open>
+          <summary>사회 과목과 역사 과목은 어떻게 연결되나요?</summary>
+          <p>사회는 현재의 제도와 생활을 살펴보고, 역사는 그것이 형성되어 온 과정을 다룹니다. 두 과목을 함께 보면 현재 사회를 더 입체적으로 이해할 수 있습니다.</p>
+        </details>
+        <details>
+          <summary>연표를 외우는 가장 좋은 방법은 무엇인가요?</summary>
+          <p>연도만 외우기보다 원인, 과정, 결과를 한 문장으로 연결해 보세요. 사건 사이의 흐름이 보이면 오래 기억됩니다.</p>
+        </details>
+        <h2 class="posted-title">등록된 질문</h2>
+        <div id="questionBoard" class="question-board"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>사회·역사 배움터 | 중학교 수업 보조 학습용</p>
+  </footer>
+</body>
+</html>

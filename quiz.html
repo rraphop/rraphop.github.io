@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>퀴즈 | 사회·역사 배움터</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="quiz-data.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="brand-mark">中</span><span>사회·역사 배움터</span></a>
+    <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false">☰</button>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="intro.html">ABOUT</a>
+      <a href="quiz.html">퀴즈</a>
+      <a href="game.html">게임</a>
+      <a href="qna.html">질문과 답변</a>
+      <a href="curriculum.html">교육과정 안내</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="page-heading">
+      <p class="eyebrow">Quiz</p>
+      <h1>사회·역사 단답형 퀴즈</h1>
+      <p>과목과 단원을 고르면 객관식 없이 단답형 5문항이 무작위로 제공됩니다. 같은 단원에서 최대 30문항까지 이어서 풀 수 있습니다.</p>
+    </section>
+
+    <section class="section quiz-shell" id="quiz">
+      <div class="quiz-setup">
+        <label for="subjectSelect">과목 선택</label>
+        <select id="subjectSelect"></select>
+        <label for="unitSelect">단원 선택</label>
+        <select id="unitSelect"></select>
+        <button class="button primary" type="button" id="startQuiz">퀴즈 시작</button>
+      </div>
+
+      <div class="quiz-status" id="quizStatus" aria-live="polite">
+        <span>과목과 단원을 선택한 뒤 시작하세요.</span>
+      </div>
+
+      <form id="quizForm" class="question-list"></form>
+
+      <div class="quiz-toolbar">
+        <button class="button primary" type="submit" form="quizForm" id="gradeQuiz" disabled>채점하기</button>
+        <button class="button secondary" type="button" id="nextRound" disabled>다음 5문항</button>
+        <button class="button secondary" type="button" id="restartQuiz" disabled>처음부터</button>
+      </div>
+      <div class="result-box" id="quizResult" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>사회·역사 배움터 | 중학교 수업 보조 학습용</p>
+  </footer>
+</body>
+</html>
