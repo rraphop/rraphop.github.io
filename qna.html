@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>질문과 답변 | 사회·역사 배움터</title>
   <link rel="stylesheet" href="style.css">
+  <script defer src="qna-config.js"></script>
   <script defer src="script.js"></script>
 </head>
 <body>
@@ -24,7 +25,7 @@
     <section class="page-heading">
       <p class="eyebrow">Q&A</p>
       <h1>질문과 답변</h1>
-      <p>궁금한 개념을 질문으로 남겨 보세요. 이 페이지의 질문은 브라우저에 임시 저장됩니다.</p>
+      <p>궁금한 개념을 질문으로 남겨 보세요. 질문과 답변은 Google Sheets 게시판에 함께 저장됩니다.</p>
     </section>
 
     <section class="section qna-layout">
@@ -75,6 +76,7 @@
         <input id="questionPassword" name="questionPassword" type="password" placeholder="나중에 질문을 수정할 때 사용합니다" required>
 
         <button class="button primary" type="submit">질문 등록</button>
+        <p id="qnaFormMessage" class="board-message" aria-live="polite"></p>
       </form>
       <aside class="qna-faq" aria-label="자주 묻는 질문">
         <h2>자주 묻는 질문</h2>

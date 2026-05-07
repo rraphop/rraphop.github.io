@@ -1032,23 +1032,91 @@ function initAcidRainGame(root) {
 document.querySelectorAll("[data-acid-game]").forEach(initAcidRainGame);
 
 const qnaForm = document.querySelector("#qnaForm");
+const qnaFormMessage = document.querySelector("#qnaFormMessage");
 const questionBoard = document.querySelector("#questionBoard");
 const qnaBoardSection = document.querySelector("#qnaBoardSection");
 const questionDetail = document.querySelector("#questionDetail");
 const questionPagination = document.querySelector("#questionPagination");
 const questionCount = document.querySelector("#questionCount");
-const storageKey = "socialHistoryQuestions";
-const qnaAdminPassword = "teacher1234";
-const qnaPageSize = 10;
+const qnaConfig = window.QNA_CONFIG || {};
+const qnaApiUrl = qnaConfig.apiUrl || window.QNA_API_URL || "";
+const qnaPageSize = Number(qnaConfig.pageSize) || 10;
+const qnaRequestTimeout = Number(qnaConfig.timeoutMs) || 15000;
 let qnaCurrentPage = 1;
 let activeQuestionId = null;
+let qnaQuestions = [];
+let qnaBusy = false;
 
-function getQuestions() {
-  return JSON.parse(localStorage.getItem(storageKey) || "[]");
+function isQnaApiConfigured() {
+  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(qnaApiUrl);
 }
 
-function saveQuestions(questions) {
-  localStorage.setItem(storageKey, JSON.stringify(questions));
+function normalizeQnaBoolean(value) {
+  return value === true || String(value).toLowerCase() === "true" || String(value).toUpperCase() === "TRUE";
+}
+
+function normalizeRemoteQuestion(item) {
+  return {
+    id: String(item.id || ""),
+    createdAt: item.createdAt || "",
+    affiliation: item.affiliation || "미기재",
+    grade: item.grade || "미기재",
+    name: item.name || "익명",
+    text: item.text || "",
+    private: normalizeQnaBoolean(item.private),
+    answer: item.answer || "",
+    answeredAt: item.answeredAt || ""
+  };
+}
+
+function qnaApiRequest(action, params = {}) {
+  return new Promise((resolve, reject) => {
+    if (!isQnaApiConfigured()) {
+      reject(new Error("qna-config.js에 Apps Script 웹앱 URL을 설정하세요."));
+      return;
+    }
+
+    const callbackName = `__qnaCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Google Sheets 게시판 응답 시간이 초과되었습니다."));
+    }, qnaRequestTimeout);
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = (payload) => {
+      cleanup();
+      if (payload?.ok) {
+        resolve(payload);
+      } else {
+        reject(new Error(payload?.message || "게시판 요청을 처리하지 못했습니다."));
+      }
+    };
+
+    const url = new URL(qnaApiUrl);
+    url.searchParams.set("callback", callbackName);
+    url.searchParams.set("action", action);
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value == null ? "" : String(value));
+    });
+
+    script.async = true;
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("Google Sheets 게시판에 연결하지 못했습니다."));
+    };
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
+}
+
+function getQuestions() {
+  return qnaQuestions;
 }
 
 function getQuestionId(item, index) {
@@ -1073,12 +1141,25 @@ function formatQuestionDate(value) {
   });
 }
 
+function setQnaFormMessage(message, type = "info") {
+  if (!qnaFormMessage) return;
+  qnaFormMessage.textContent = message;
+  qnaFormMessage.className = `board-message ${type}`;
+}
+
+function setQnaBusy(isBusy) {
+  qnaBusy = isBusy;
+  qnaForm?.querySelectorAll("button, input, textarea").forEach((control) => {
+    control.disabled = isBusy;
+  });
+}
+
 function renderQuestionTools(item, index) {
   return `
     <div class="question-tools">
       <details>
         <summary>질문 수정</summary>
-        <form class="board-form edit-question-form" data-index="${index}">
+        <form class="board-form edit-question-form" data-index="${index}" data-question-id="${escapeHTML(getQuestionId(item, index))}">
           <label>수정 비밀번호</label>
           <input type="password" name="editPassword" placeholder="등록할 때 설정한 비밀번호" required>
           <label>질문 내용 수정</label>
@@ -1092,7 +1173,7 @@ function renderQuestionTools(item, index) {
       </details>
       <details>
         <summary>관리자 답변</summary>
-        <form class="board-form admin-answer-form" data-index="${index}">
+        <form class="board-form admin-answer-form" data-index="${index}" data-question-id="${escapeHTML(getQuestionId(item, index))}">
           <label>관리자 비밀번호</label>
           <input type="password" name="adminPassword" placeholder="관리자만 답변할 수 있습니다" required>
           <label>답변 내용</label>
@@ -1102,7 +1183,7 @@ function renderQuestionTools(item, index) {
       </details>
       <details>
         <summary>관리자 삭제</summary>
-        <form class="board-form admin-delete-form" data-index="${index}">
+        <form class="board-form admin-delete-form" data-index="${index}" data-question-id="${escapeHTML(getQuestionId(item, index))}">
           <label>관리자 비밀번호</label>
           <input type="password" name="deletePassword" placeholder="삭제 권한 확인" required>
           <p class="delete-warning">삭제하면 이 질문과 답변은 게시판에서 사라집니다.</p>
@@ -1170,11 +1251,22 @@ function renderQuestionPagination(totalPages) {
   }).join("");
 }
 
-function renderQuestions() {
+function renderQuestions(message = "") {
   if (!questionBoard) return;
   const questions = getQuestions();
   const totalPages = Math.max(1, Math.ceil(questions.length / qnaPageSize));
   qnaCurrentPage = Math.min(Math.max(qnaCurrentPage, 1), totalPages);
+
+  if (message) {
+    if (questionCount) questionCount.textContent = "";
+    if (questionDetail) {
+      questionDetail.hidden = true;
+      questionDetail.innerHTML = "";
+    }
+    if (questionPagination) questionPagination.innerHTML = "";
+    questionBoard.innerHTML = `<p class="empty-state">${escapeHTML(message)}</p>`;
+    return;
+  }
 
   if (questions.length === 0) {
     if (questionCount) questionCount.textContent = "등록된 질문 0개";
@@ -1225,6 +1317,28 @@ function showBoardMessage(index, message, type = "info") {
   messageBox.className = `board-message ${type}`;
 }
 
+async function refreshQuestions(options = {}) {
+  if (!questionBoard) return;
+  const { keepActive = true } = options;
+  if (!isQnaApiConfigured()) {
+    qnaQuestions = [];
+    renderQuestions("qna-config.js에 Apps Script 웹앱 URL을 설정하면 공개 질문 목록을 불러옵니다.");
+    return;
+  }
+
+  renderQuestions("질문 목록을 불러오는 중입니다.");
+
+  try {
+    const payload = await qnaApiRequest("list");
+    qnaQuestions = (payload.questions || []).map(normalizeRemoteQuestion);
+    if (!keepActive) activeQuestionId = null;
+    renderQuestions();
+  } catch (error) {
+    qnaQuestions = [];
+    renderQuestions(error.message || "질문 목록을 불러오지 못했습니다.");
+  }
+}
+
 if (qnaForm && questionBoard) {
   const anonymousCheckboxes = qnaForm.querySelectorAll("[data-anonymous-target]");
   const qnaBoardContainer = qnaBoardSection || questionBoard;
@@ -1232,7 +1346,7 @@ if (qnaForm && questionBoard) {
   function syncAnonymousInputs() {
     anonymousCheckboxes.forEach((checkbox) => {
       const input = document.querySelector(`#${checkbox.dataset.anonymousTarget}`);
-      input.disabled = checkbox.checked;
+      input.disabled = qnaBusy || checkbox.checked;
       if (checkbox.checked) input.value = "";
     });
   }
@@ -1245,7 +1359,7 @@ if (qnaForm && questionBoard) {
     });
   });
 
-  renderQuestions();
+  refreshQuestions();
 
   qnaBoardContainer.addEventListener("click", (event) => {
     const openButton = event.target.closest(".question-open");
@@ -1273,62 +1387,70 @@ if (qnaForm && questionBoard) {
     }
   });
 
-  qnaBoardContainer.addEventListener("submit", (event) => {
+  qnaBoardContainer.addEventListener("submit", async (event) => {
     const editForm = event.target.closest(".edit-question-form");
     const answerForm = event.target.closest(".admin-answer-form");
     const deleteForm = event.target.closest(".admin-delete-form");
     if (!editForm && !answerForm && !deleteForm) return;
 
     event.preventDefault();
-    const questions = getQuestions();
-    const form = editForm || answerForm || deleteForm;
-    const index = Number(form.dataset.index);
-    const item = questions[index];
-    if (!item) return;
-
-    const formData = new FormData(form);
-
-    if (editForm) {
-      const savedPassword = item.password || "";
-      const inputPassword = String(formData.get("editPassword") || "");
-      if (!savedPassword || inputPassword !== savedPassword) {
-        showBoardMessage(index, "수정 비밀번호가 맞지 않습니다.", "error");
-        return;
-      }
-      item.text = String(formData.get("editText") || "").trim();
-      item.private = Boolean(formData.get("editPrivate"));
-      saveQuestions(questions);
-      renderQuestions();
+    if (!isQnaApiConfigured()) {
+      setQnaFormMessage("qna-config.js에 Apps Script 웹앱 URL을 설정하세요.", "error");
       return;
     }
 
-    if (answerForm) {
-      const inputPassword = String(formData.get("adminPassword") || "");
-      if (inputPassword !== qnaAdminPassword) {
-        showBoardMessage(index, "관리자 비밀번호가 맞지 않습니다.", "error");
-        return;
-      }
-      item.answer = String(formData.get("answerText") || "").trim();
-      item.answeredAt = new Date().toISOString();
-      saveQuestions(questions);
-      renderQuestions();
-    }
+    const form = editForm || answerForm || deleteForm;
+    const index = Number(form.dataset.index);
+    const id = form.dataset.questionId;
+    const formData = new FormData(form);
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
 
-    if (deleteForm) {
-      const inputPassword = String(formData.get("deletePassword") || "");
-      if (inputPassword !== qnaAdminPassword) {
-        showBoardMessage(index, "관리자 비밀번호가 맞지 않습니다.", "error");
+    try {
+      if (editForm) {
+        await qnaApiRequest("update", {
+          id,
+          password: String(formData.get("editPassword") || ""),
+          text: String(formData.get("editText") || "").trim(),
+          private: Boolean(formData.get("editPrivate"))
+        });
+        showBoardMessage(index, "질문이 수정되었습니다.");
+        await refreshQuestions();
         return;
       }
-      questions.splice(index, 1);
-      activeQuestionId = null;
-      saveQuestions(questions);
-      renderQuestions();
+
+      if (answerForm) {
+        await qnaApiRequest("answer", {
+          id,
+          adminPassword: String(formData.get("adminPassword") || ""),
+          answer: String(formData.get("answerText") || "").trim()
+        });
+        showBoardMessage(index, "답변이 저장되었습니다.");
+        await refreshQuestions();
+      }
+
+      if (deleteForm) {
+        await qnaApiRequest("delete", {
+          id,
+          adminPassword: String(formData.get("deletePassword") || "")
+        });
+        activeQuestionId = null;
+        await refreshQuestions({ keepActive: false });
+      }
+    } catch (error) {
+      showBoardMessage(index, error.message || "요청을 처리하지 못했습니다.", "error");
+    } finally {
+      if (submitButton) submitButton.disabled = false;
     }
   });
 
-  qnaForm.addEventListener("submit", (event) => {
+  qnaForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!isQnaApiConfigured()) {
+      setQnaFormMessage("qna-config.js에 Apps Script 웹앱 URL을 설정하세요.", "error");
+      return;
+    }
+
     const formData = new FormData(qnaForm);
     const affiliation = formData.get("anonymousAffiliation")
       ? "익명"
@@ -1343,23 +1465,29 @@ if (qnaForm && questionBoard) {
     const privateQuestion = Boolean(formData.get("privateQuestion"));
     const password = String(formData.get("questionPassword") || "");
     if (!text || !password) return;
-    const questions = getQuestions();
-    questions.unshift({
-      id: Date.now().toString(),
-      affiliation,
-      grade,
-      name,
-      text,
-      private: privateQuestion,
-      password,
-      answer: "",
-      createdAt: new Date().toISOString()
-    });
-    saveQuestions(questions);
-    qnaForm.reset();
-    syncAnonymousInputs();
-    qnaCurrentPage = 1;
-    activeQuestionId = null;
-    renderQuestions();
+
+    setQnaBusy(true);
+    setQnaFormMessage("질문을 등록하는 중입니다.");
+
+    try {
+      await qnaApiRequest("create", {
+        affiliation,
+        grade,
+        name,
+        text,
+        private: privateQuestion,
+        password
+      });
+      qnaForm.reset();
+      qnaCurrentPage = 1;
+      activeQuestionId = null;
+      setQnaFormMessage("질문이 등록되었습니다.");
+      await refreshQuestions({ keepActive: false });
+    } catch (error) {
+      setQnaFormMessage(error.message || "질문을 등록하지 못했습니다.", "error");
+    } finally {
+      setQnaBusy(false);
+      syncAnonymousInputs();
+    }
   });
 }
