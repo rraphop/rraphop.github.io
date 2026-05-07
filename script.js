@@ -1040,7 +1040,7 @@ const questionPagination = document.querySelector("#questionPagination");
 const questionCount = document.querySelector("#questionCount");
 const qnaConfig = window.QNA_CONFIG || {};
 const qnaApiUrl = qnaConfig.apiUrl || window.QNA_API_URL || "";
-const qnaPageSize = Number(qnaConfig.pageSize) || 10;
+const qnaPageSize = 10;
 const qnaRequestTimeout = Number(qnaConfig.timeoutMs) || 15000;
 let qnaCurrentPage = 1;
 let activeQuestionId = null;
@@ -1127,7 +1127,7 @@ function getQuestionTitle(item) {
   if (item.private) return "비공개 질문입니다.";
   const title = (item.text || "").replace(/\s+/g, " ").trim();
   if (!title) return "제목 없는 질문";
-  return title.length > 68 ? `${title.slice(0, 68)}...` : title;
+  return title.length > 140 ? `${title.slice(0, 140)}...` : title;
 }
 
 function formatQuestionDate(value) {
@@ -1244,7 +1244,7 @@ function renderQuestionPagination(totalPages) {
   questionPagination.innerHTML = Array.from({ length: totalPages }, (_, index) => {
     const page = index + 1;
     return `
-      <button type="button" data-qna-page="${page}" ${page === qnaCurrentPage ? 'aria-current="page"' : ""}>
+      <button type="button" data-qna-page="${page}" aria-label="${page}페이지" ${page === qnaCurrentPage ? 'aria-current="page"' : ""}>
         ${page}
       </button>
     `;
@@ -1285,7 +1285,7 @@ function renderQuestions(message = "") {
   const pageEnd = startIndex + pageQuestions.length;
 
   if (questionCount) {
-    questionCount.textContent = `총 ${questions.length}개 질문 · ${pageStart}-${pageEnd}번째 표시`;
+    questionCount.textContent = `총 ${questions.length}개 질문 · 페이지당 ${qnaPageSize}개 · ${pageStart}-${pageEnd}번째 표시`;
   }
 
   renderQuestionDetail(questions);
