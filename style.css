@@ -1407,8 +1407,8 @@ tbody th {
   left: 0;
   right: 0;
   z-index: 46;
-  /* 낙하 영역 = visualViewport 전체 - 상태바 - 입력칸 */
-  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px) - var(--acid-input-height, 68px));
+  /* 낙하 영역 = visualViewport 전체 - 상태바 (입력칸이 아래로 내려가 낙하 영역 최대화) */
+  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px));
   min-height: 80px;
   max-height: none;
   margin: 0;
@@ -1422,7 +1422,8 @@ tbody th {
 */
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-input-row {
   position: fixed;
-  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh) - var(--acid-input-height, 68px));
+  /* visualViewport 하단 = 키보드 바로 위 (입력칸 높이만큼 내린 위치) */
+  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh));
   left: 0;
   right: 0;
   bottom: auto;

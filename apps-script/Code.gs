@@ -19,6 +19,8 @@ const COUNT_HEADERS = [
   'total',
   'updatedAt'
 ];
+const COUNT_CACHE_KEY = 'visitorCountSummary';
+const COUNT_CACHE_SECONDS = 300;
 
 function doGet(e) {
   return handleRequest_(e);
@@ -175,14 +177,19 @@ function deleteQuestion_(params) {
 
 function getVisitorCount_(params) {
   const dateKey = normalizeDateKey_(params.date);
+  const cached = getCachedCount_(dateKey);
+  if (cached) return cached;
+
   const sheet = getCountSheet_();
   const map = getHeaderMap_(sheet);
   const summary = getCountSummary_(sheet, map, dateKey);
-  return {
+  const result = {
     date: dateKey,
     today: summary.today,
     total: summary.total
   };
+  cacheCount_(result);
+  return result;
 }
 
 function recordVisit_(params) {
@@ -207,7 +214,9 @@ function recordVisit_(params) {
       sheet.appendRow(COUNT_HEADERS.map((header) => rowObject[header] ?? ''));
     }
 
-    return { date: dateKey, today, total, updatedAt };
+    const result = { date: dateKey, today, total, updatedAt };
+    cacheCount_(result);
+    return result;
   } finally {
     lock.releaseLock();
   }
@@ -311,6 +320,39 @@ function getCountSummary_(sheet, map, dateKey) {
   });
 
   return { today, total };
+}
+
+function getCachedCount_(dateKey) {
+  try {
+    const saved = CacheService.getScriptCache().get(COUNT_CACHE_KEY);
+    if (!saved) return null;
+
+    const parsed = JSON.parse(saved);
+    const total = Number(parsed.total);
+    if (!Number.isFinite(total)) return null;
+
+    return {
+      date: dateKey,
+      today: String(parsed.date || '') === dateKey ? Number(parsed.today) || 0 : 0,
+      total,
+      updatedAt: parsed.updatedAt || ''
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function cacheCount_(payload) {
+  try {
+    CacheService.getScriptCache().put(COUNT_CACHE_KEY, JSON.stringify({
+      date: payload.date || '',
+      today: Number(payload.today) || 0,
+      total: Number(payload.total) || 0,
+      updatedAt: payload.updatedAt || new Date().toISOString()
+    }), COUNT_CACHE_SECONDS);
+  } catch (error) {
+    // 캐시 실패 시에도 시트 저장 결과는 그대로 반환합니다.
+  }
 }
 
 function rowToQuestion_(row, map, includePrivateFields) {

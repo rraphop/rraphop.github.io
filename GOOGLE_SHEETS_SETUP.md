@@ -86,7 +86,8 @@ window.QNA_CONFIG = {
 ## 참고 사항
 
 - 정적 HTML에서도 동작하도록 `script.js`는 Apps Script를 JSONP 방식으로 호출합니다.
-- 방문자 카운터는 같은 브라우저 탭에서 새로고침할 때 중복 카운트되지 않도록 `sessionStorage`에 오늘 카운트 여부만 임시 표시합니다.
+- 방문자 카운터는 화면 표시를 빠르게 하기 위해 마지막으로 받은 숫자만 브라우저에 임시 캐시하고, 기준 데이터는 Google Sheets `count` 시트에 저장합니다.
+- 같은 브라우저 탭에서 새로고침할 때 중복 카운트되지 않도록 `sessionStorage`에 오늘 카운트 여부만 임시 표시합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.
 - 관리자 비밀번호는 홈페이지 JS에 넣지 않고 Apps Script 스크립트 속성 `QNA_ADMIN_PASSWORD`에서 검증합니다.
 - Apps Script를 새 버전으로 수정한 뒤에는 `배포 관리`에서 새 버전을 배포해야 홈페이지에 반영됩니다.
