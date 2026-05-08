@@ -787,21 +787,35 @@ function initAcidRainGame(root) {
   }
 
   function updateAcidViewportMetrics() {
+    // visualViewport API를 우선 사용: 키보드가 올라왔을 때 실제 보이는 영역 높이를 반영
     const viewportHeight = window.visualViewport?.height || window.innerHeight;
     const viewportTop = window.visualViewport?.offsetTop || 0;
     const inputHeight = Math.ceil(acidForm?.offsetHeight || 68);
     const statusHeight = Math.ceil(acidStatus?.offsetHeight || 38);
+    const isIOSViewport = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
     root.style.setProperty("--acid-visual-height", `${viewportHeight}px`);
     root.style.setProperty("--acid-visual-top", `${viewportTop}px`);
     root.style.setProperty("--acid-input-height", `${inputHeight}px`);
     root.style.setProperty("--acid-status-height", `${statusHeight}px`);
+
+    // 낙하 영역 높이: visualViewport 높이의 절반 - 상태바 높이
+    // 키보드가 올라오면 visualViewport.height가 줄어들어 낙하 영역도 자동으로 상단 절반만 차지
+    const arenaHeight = Math.max(100, Math.floor(viewportHeight * 0.5) - statusHeight);
+    root.style.setProperty("--acid-arena-height", `${arenaHeight}px`);
+
     if (!window.visualViewport) return;
     const viewportInset = Math.max(
       0,
       window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop
     );
     const keyboardInset = viewportInset > 80 ? viewportInset : 0;
+    const keyboardSnug = keyboardInset > 0 && isIOSViewport
+      ? Math.min(96, Math.max(56, keyboardInset * 0.18))
+      : 0;
     root.style.setProperty("--acid-keyboard-inset", `${keyboardInset}px`);
+    root.style.setProperty("--acid-keyboard-snug", `${keyboardSnug}px`);
   }
 
   function syncAcidModeUI() {
@@ -1068,10 +1082,16 @@ function initAcidRainGame(root) {
       } catch (error) {
         acidAnswer.focus();
       }
+      // 키보드가 올라온 직후 visualViewport가 업데이트되도록 여러 번 메트릭 갱신
       requestAnimationFrame(() => {
         updateAcidViewportMetrics();
         window.scrollTo(scrollX, scrollY);
       });
+      // 키보드 애니메이션 완료 후 추가 업데이트 (iOS/Android 키보드 애니메이션 시간 고려)
+      setTimeout(() => {
+        updateAcidViewportMetrics();
+        window.scrollTo(scrollX, scrollY);
+      }, 350);
     } else {
       acidAnswer.focus();
     }

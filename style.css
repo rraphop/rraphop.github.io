@@ -1265,6 +1265,8 @@ tbody th {
   margin: 0;
 }
 
+/* ─── 산성비 게임 모바일 레이아웃 (acid-mobile-layout 클래스) ─── */
+
 #acidRainGame.acid-mobile-layout.active {
   padding-bottom: 112px;
   scroll-margin-top: 78px;
@@ -1310,11 +1312,12 @@ tbody th {
   white-space: nowrap;
 }
 
+/* 대기 상태: 낙하 영역을 화면의 절반 높이로 표시 */
 #acidRainGame.acid-mobile-layout .acid-arena {
   height: 50vh;
   height: 50svh;
-  min-height: 260px;
-  max-height: 430px;
+  min-height: 220px;
+  max-height: none;
   border-radius: 0;
   margin-inline: -24px;
   border-inline: 0;
@@ -1332,12 +1335,12 @@ tbody th {
   font-size: 0.88rem;
 }
 
+/* 대기 상태: 입력칸은 화면 하단 고정 (키보드 위) */
 #acidRainGame.acid-mobile-layout .acid-input-row {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--acid-keyboard-inset, 0px);
-  bottom: calc(var(--acid-keyboard-inset, 0px) + env(safe-area-inset-bottom));
+  bottom: calc(var(--acid-keyboard-inset, 0px) + env(safe-area-inset-bottom, 0px));
   z-index: 30;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
@@ -1367,6 +1370,8 @@ tbody th {
   padding: 0 14px;
 }
 
+/* ─── 게임 실행 중 (acid-game-running) ─── */
+
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-ranking {
   display: none;
 }
@@ -1377,9 +1382,10 @@ tbody th {
   display: none;
 }
 
+/* 게임 실행 중: 상태바를 화면 최상단에 고정 */
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-status {
   position: fixed;
-  top: var(--acid-visual-top, 0);
+  top: var(--acid-visual-top, 0px);
   left: 0;
   right: 0;
   z-index: 48;
@@ -1389,23 +1395,39 @@ tbody th {
   border-bottom: 1px solid var(--line);
 }
 
+/*
+  게임 실행 중: 낙하 영역
+  - 상단: 상태바 바로 아래 (visualViewport 상단 기준)
+  - 높이: visualViewport 높이의 절반 (키보드 포함 화면에서 상단 50%)
+  - 키보드가 올라오면 visualViewport.height가 줄어들어 자동으로 상단 절반만 차지
+*/
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-arena {
   position: fixed;
   top: calc(var(--acid-visual-top, 0px) + var(--acid-status-height, 38px));
   left: 0;
   right: 0;
   z-index: 46;
-  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px) - var(--acid-input-height, 68px));
-  min-height: 0;
+  /* JS에서 계산한 --acid-arena-height 사용 (visualViewport 높이의 50% - 상태바) */
+  height: var(--acid-arena-height, calc(var(--acid-visual-height, 100vh) * 0.5 - var(--acid-status-height, 38px)));
+  min-height: 100px;
   max-height: none;
   margin: 0;
   border-width: 0 0 1px;
 }
 
+/*
+  게임 실행 중: 입력칸
+  - 낙하 영역 바로 아래 = visualViewport 상단 + visualViewport 높이의 절반
+  - 키보드가 올라오면 visualViewport.height가 줄어들어 입력칸이 키보드 바로 위에 위치
+*/
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-input-row {
-  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh) - var(--acid-input-height, 68px));
+  position: fixed;
+  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh) * 0.5);
+  left: 0;
+  right: 0;
   bottom: auto;
   z-index: 52;
+  padding: 8px 12px;
 }
 
 @media (max-width: 820px) {
@@ -1518,8 +1540,8 @@ tbody th {
   .acid-arena {
     height: 50vh;
     height: 50svh;
-    min-height: 260px;
-    max-height: 430px;
+    min-height: 220px;
+    max-height: none;
     border-radius: 0;
     margin-inline: -24px;
     border-inline: 0;
