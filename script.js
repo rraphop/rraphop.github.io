@@ -799,11 +799,7 @@ function initAcidRainGame(root) {
     root.style.setProperty("--acid-visual-top", `${viewportTop}px`);
     root.style.setProperty("--acid-input-height", `${inputHeight}px`);
     root.style.setProperty("--acid-status-height", `${statusHeight}px`);
-
-    // 낙하 영역 높이: visualViewport 높이의 절반 - 상태바 높이
-    // 키보드가 올라오면 visualViewport.height가 줄어들어 낙하 영역도 자동으로 상단 절반만 차지
-    const arenaHeight = Math.max(100, Math.floor(viewportHeight * 0.5) - statusHeight);
-    root.style.setProperty("--acid-arena-height", `${arenaHeight}px`);
+    // 낙하 영역 높이 = visualViewport - 상태바 - 입력칸 (순수 CSS calc로 처리)
 
     if (!window.visualViewport) return;
     const viewportInset = Math.max(
