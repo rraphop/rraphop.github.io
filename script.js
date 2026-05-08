@@ -729,6 +729,7 @@ function initAcidRainGame(root) {
   const acidForm = root.querySelector("[data-acid-form]");
   const acidAnswer = root.querySelector("[data-acid-answer]");
   const acidSubmit = root.querySelector("[data-acid-submit]");
+  const acidStatus = root.querySelector(".acid-status");
   const acidScore = root.querySelector("[data-acid-score]");
   const acidLives = root.querySelector("[data-acid-lives]");
   const acidLevel = root.querySelector("[data-acid-level]");
@@ -782,10 +783,18 @@ function initAcidRainGame(root) {
   function syncAcidMobileLayout() {
     root.classList.toggle("acid-mobile-layout", isAcidMobileLayout());
     refreshReadyMessageForInputMode();
-    updateAcidKeyboardInset();
+    updateAcidViewportMetrics();
   }
 
-  function updateAcidKeyboardInset() {
+  function updateAcidViewportMetrics() {
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    const viewportTop = window.visualViewport?.offsetTop || 0;
+    const inputHeight = Math.ceil(acidForm?.offsetHeight || 68);
+    const statusHeight = Math.ceil(acidStatus?.offsetHeight || 38);
+    root.style.setProperty("--acid-visual-height", `${viewportHeight}px`);
+    root.style.setProperty("--acid-visual-top", `${viewportTop}px`);
+    root.style.setProperty("--acid-input-height", `${inputHeight}px`);
+    root.style.setProperty("--acid-status-height", `${statusHeight}px`);
     if (!window.visualViewport) return;
     const viewportInset = Math.max(
       0,
@@ -1046,6 +1055,7 @@ function initAcidRainGame(root) {
     resetAcidGame("");
     acidState.running = true;
     root.classList.add("acid-game-running");
+    updateAcidViewportMetrics();
     acidState.startedAt = performance.now();
     acidReady.hidden = true;
     acidAnswer.disabled = false;
@@ -1058,7 +1068,10 @@ function initAcidRainGame(root) {
       } catch (error) {
         acidAnswer.focus();
       }
-      requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+      requestAnimationFrame(() => {
+        updateAcidViewportMetrics();
+        window.scrollTo(scrollX, scrollY);
+      });
     } else {
       acidAnswer.focus();
     }
@@ -1133,9 +1146,9 @@ function initAcidRainGame(root) {
     mobileLayoutQuery?.addEventListener?.("change", syncAcidMobileLayout);
     mobileLayoutQuery?.addListener?.(syncAcidMobileLayout);
     window.addEventListener("resize", syncAcidMobileLayout);
-    window.visualViewport?.addEventListener("resize", updateAcidKeyboardInset);
-    window.visualViewport?.addEventListener("scroll", updateAcidKeyboardInset);
-    updateAcidKeyboardInset();
+    window.visualViewport?.addEventListener("resize", updateAcidViewportMetrics);
+    window.visualViewport?.addEventListener("scroll", updateAcidViewportMetrics);
+    updateAcidViewportMetrics();
   }
 }
 
