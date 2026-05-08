@@ -752,9 +752,31 @@ function initAcidRainGame(root) {
     : root.dataset.acidTerms || "social";
   let termBank = getAcidTermBank(currentTermGroup);
   let acidState = createAcidState();
+  const touchStartQuery = window.matchMedia?.("(hover: none), (pointer: coarse)");
+
+  function isAcidTouchStartDevice() {
+    return Boolean(touchStartQuery?.matches || navigator.maxTouchPoints > 0);
+  }
 
   function getReadyMessage() {
-    return `스페이스바를 누르면 ${getAcidTermLabel(currentTermGroup)}가 떨어집니다.`;
+    const startAction = isAcidTouchStartDevice() ? "터치하면" : "스페이스바를 누르면";
+    return `${startAction} ${getAcidTermLabel(currentTermGroup)}가 떨어집니다.`;
+  }
+
+  function refreshReadyMessageForInputMode() {
+    if (!acidState.running && !acidReady.hidden) {
+      acidReady.textContent = getReadyMessage();
+    }
+  }
+
+  function updateAcidKeyboardInset() {
+    if (!window.visualViewport) return;
+    const viewportInset = Math.max(
+      0,
+      window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop
+    );
+    const keyboardInset = viewportInset > 80 ? viewportInset : 0;
+    root.style.setProperty("--acid-keyboard-inset", `${keyboardInset}px`);
   }
 
   function syncAcidModeUI() {
@@ -1014,6 +1036,12 @@ function initAcidRainGame(root) {
     acidState.animationId = requestAnimationFrame(updateAcidFrame);
   }
 
+  function handleAcidArenaPointerStart(event) {
+    if (!isAcidTouchStartDevice() || acidState.running) return;
+    if (event.target.closest(".acid-drop")) return;
+    startAcidGame();
+  }
+
   function handleAcidAnswer(event) {
     event.preventDefault();
     if (!acidState.running) return;
@@ -1065,7 +1093,12 @@ function initAcidRainGame(root) {
     resetAcidRain.addEventListener("click", () => resetAcidGame());
     acidForm.addEventListener("submit", handleAcidAnswer);
     acidRankForm?.addEventListener("submit", handleAcidRankSubmit);
+    acidArena.addEventListener("pointerdown", handleAcidArenaPointerStart);
     document.addEventListener("keydown", handleAcidKeydown);
+    touchStartQuery?.addEventListener?.("change", refreshReadyMessageForInputMode);
+    window.visualViewport?.addEventListener("resize", updateAcidKeyboardInset);
+    window.visualViewport?.addEventListener("scroll", updateAcidKeyboardInset);
+    updateAcidKeyboardInset();
   }
 }
 
