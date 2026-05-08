@@ -40,8 +40,11 @@ function shuffle(items) {
 }
 
 const visitorCounter = document.querySelector("#visitorCounter");
-const visitorStorageKey = "socialHistoryVisitors";
 const visitorSessionKey = "socialHistoryVisitorCountedDate";
+const visitorApiUrl = window.QNA_CONFIG?.apiUrl
+  || window.QNA_API_URL
+  || "https://script.google.com/macros/s/AKfycbyn5JOoAX72ZtXHuueNy8w5I1KSVwvKitjvaIAqlK8V8U-ukvbi2nD7C9SGS0glWkLa/exec";
+const visitorRequestTimeout = Number(window.QNA_CONFIG?.timeoutMs) || 15000;
 const visitorCountBaseSize = 1.16;
 const visitorCountMinSize = 0.62;
 
@@ -52,24 +55,54 @@ function getVisitorDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function getVisitorData() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(visitorStorageKey) || "{}");
-    return {
-      total: Number(saved.total) || 0,
-      byDate: saved.byDate && typeof saved.byDate === "object" ? saved.byDate : {}
-    };
-  } catch {
-    return { total: 0, byDate: {} };
-  }
+function isVisitorApiConfigured() {
+  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(visitorApiUrl);
 }
 
-function saveVisitorData(data) {
-  try {
-    localStorage.setItem(visitorStorageKey, JSON.stringify(data));
-  } catch {
-    // 방문자 카운터는 저장소 접근이 제한된 환경에서도 화면 렌더링은 유지합니다.
-  }
+function visitorApiRequest(action, params = {}) {
+  return new Promise((resolve, reject) => {
+    if (!isVisitorApiConfigured()) {
+      reject(new Error("Apps Script 웹앱 URL을 설정하세요."));
+      return;
+    }
+
+    const callbackName = `__visitorCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("방문자 카운터 응답 시간이 초과되었습니다."));
+    }, visitorRequestTimeout);
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = (payload) => {
+      cleanup();
+      if (payload?.ok) {
+        resolve(payload);
+      } else {
+        reject(new Error(payload?.message || "방문자 카운터 요청을 처리하지 못했습니다."));
+      }
+    };
+
+    const url = new URL(visitorApiUrl);
+    url.searchParams.set("callback", callbackName);
+    url.searchParams.set("action", action);
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value == null ? "" : String(value));
+    });
+
+    script.async = true;
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("방문자 카운터에 연결하지 못했습니다."));
+    };
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
 }
 
 function fitVisitorCountElement(element) {
@@ -94,35 +127,42 @@ function fitVisitorCounts() {
     .forEach(fitVisitorCountElement);
 }
 
-function updateVisitorCounter() {
+function renderVisitorCounter(todayCount, totalCount) {
+  if (!visitorCounter) return;
+
+  const todayElement = visitorCounter.querySelector("[data-visitor-today]");
+  const totalElement = visitorCounter.querySelector("[data-visitor-total]");
+  if (todayElement) todayElement.textContent = (Number(todayCount) || 0).toLocaleString("ko-KR");
+  if (totalElement) totalElement.textContent = (Number(totalCount) || 0).toLocaleString("ko-KR");
+  requestAnimationFrame(fitVisitorCounts);
+}
+
+async function updateVisitorCounter() {
   if (!visitorCounter) return;
 
   const todayKey = getVisitorDateKey();
-  const data = getVisitorData();
   let shouldCountVisit = true;
 
   try {
     shouldCountVisit = sessionStorage.getItem(visitorSessionKey) !== todayKey;
-    if (shouldCountVisit) sessionStorage.setItem(visitorSessionKey, todayKey);
   } catch {
     shouldCountVisit = true;
   }
 
-  if (!data.byDate[todayKey]) shouldCountVisit = true;
-
-  if (shouldCountVisit) {
-    data.total += 1;
-    data.byDate[todayKey] = (Number(data.byDate[todayKey]) || 0) + 1;
-    saveVisitorData(data);
+  try {
+    const payload = await visitorApiRequest(shouldCountVisit ? "visit" : "count", { date: todayKey });
+    if (shouldCountVisit) {
+      try {
+        sessionStorage.setItem(visitorSessionKey, todayKey);
+      } catch {
+        // 카운트 저장은 Google Sheets에서 처리하므로 세션 표시 실패는 무시합니다.
+      }
+    }
+    renderVisitorCounter(payload.today, payload.total);
+  } catch (error) {
+    console.warn(error);
+    requestAnimationFrame(fitVisitorCounts);
   }
-
-  const todayCount = Number(data.byDate[todayKey]) || 0;
-  const totalCount = Number(data.total) || 0;
-  const todayElement = visitorCounter.querySelector("[data-visitor-today]");
-  const totalElement = visitorCounter.querySelector("[data-visitor-total]");
-  if (todayElement) todayElement.textContent = todayCount.toLocaleString("ko-KR");
-  if (totalElement) totalElement.textContent = totalCount.toLocaleString("ko-KR");
-  requestAnimationFrame(fitVisitorCounts);
 }
 
 updateVisitorCounter();

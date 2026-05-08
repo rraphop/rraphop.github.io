@@ -1,4 +1,5 @@
 const SHEET_NAME = 'QNA';
+const COUNT_SHEET_NAME = 'count';
 const HEADERS = [
   'id',
   'createdAt',
@@ -11,6 +12,12 @@ const HEADERS = [
   'answer',
   'answeredAt',
   'status'
+];
+const COUNT_HEADERS = [
+  'date',
+  'today',
+  'total',
+  'updatedAt'
 ];
 
 function doGet(e) {
@@ -32,6 +39,8 @@ function handleRequest_(e) {
     else if (action === 'update') result = updateQuestion_(params);
     else if (action === 'answer') result = answerQuestion_(params);
     else if (action === 'delete') result = deleteQuestion_(params);
+    else if (action === 'visit') result = recordVisit_(params);
+    else if (action === 'count') result = getVisitorCount_(params);
     else if (action === 'ping') result = { message: 'QNA Apps Script is ready.' };
     else throw new Error('알 수 없는 요청입니다.');
 
@@ -164,6 +173,46 @@ function deleteQuestion_(params) {
   }
 }
 
+function getVisitorCount_(params) {
+  const dateKey = normalizeDateKey_(params.date);
+  const sheet = getCountSheet_();
+  const map = getHeaderMap_(sheet);
+  const summary = getCountSummary_(sheet, map, dateKey);
+  return {
+    date: dateKey,
+    today: summary.today,
+    total: summary.total
+  };
+}
+
+function recordVisit_(params) {
+  const dateKey = normalizeDateKey_(params.date);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getCountSheet_();
+    const map = getHeaderMap_(sheet);
+    const found = findCountRow_(sheet, map, dateKey);
+    const summary = getCountSummary_(sheet, map, dateKey);
+    const updatedAt = new Date().toISOString();
+    const today = summary.today + 1;
+    const total = summary.total + 1;
+
+    if (found) {
+      setCell_(sheet, found.rowIndex, map, 'today', today);
+      setCell_(sheet, found.rowIndex, map, 'total', total);
+      setCell_(sheet, found.rowIndex, map, 'updatedAt', updatedAt);
+    } else {
+      const rowObject = { date: dateKey, today, total, updatedAt };
+      sheet.appendRow(COUNT_HEADERS.map((header) => rowObject[header] ?? ''));
+    }
+
+    return { date: dateKey, today, total, updatedAt };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function getSheet_() {
   const props = PropertiesService.getScriptProperties();
   const spreadsheetId = props.getProperty('QNA_SPREADSHEET_ID');
@@ -180,20 +229,36 @@ function getSheet_() {
   return sheet;
 }
 
-function ensureHeaders_(sheet) {
+function getCountSheet_() {
+  const props = PropertiesService.getScriptProperties();
+  const spreadsheetId = props.getProperty('QNA_SPREADSHEET_ID');
+  const spreadsheet = spreadsheetId
+    ? SpreadsheetApp.openById(spreadsheetId)
+    : SpreadsheetApp.getActiveSpreadsheet();
+
+  if (!spreadsheet) {
+    throw new Error('스프레드시트를 찾을 수 없습니다. QNA_SPREADSHEET_ID 스크립트 속성을 설정하세요.');
+  }
+
+  const sheet = spreadsheet.getSheetByName(COUNT_SHEET_NAME) || spreadsheet.insertSheet(COUNT_SHEET_NAME);
+  ensureHeaders_(sheet, COUNT_HEADERS);
+  return sheet;
+}
+
+function ensureHeaders_(sheet, headers = HEADERS) {
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(HEADERS);
+    sheet.appendRow(headers);
     return;
   }
 
-  const lastColumn = Math.max(sheet.getLastColumn(), HEADERS.length);
+  const lastColumn = Math.max(sheet.getLastColumn(), headers.length);
   const current = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].filter(String);
   if (current.length === 0) {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     return;
   }
 
-  HEADERS.forEach((header) => {
+  headers.forEach((header) => {
     if (!current.includes(header)) {
       sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header);
     }
@@ -218,6 +283,34 @@ function findQuestionRow_(sheet, id) {
     }
   }
   return null;
+}
+
+function findCountRow_(sheet, map, dateKey) {
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return null;
+  for (let i = 1; i < values.length; i += 1) {
+    if (String(values[i][map.date] || '') === String(dateKey)) {
+      return { rowIndex: i + 1, row: values[i], map };
+    }
+  }
+  return null;
+}
+
+function getCountSummary_(sheet, map, dateKey) {
+  const values = sheet.getDataRange().getValues();
+  let today = 0;
+  let total = 0;
+
+  if (values.length <= 1) return { today, total };
+
+  values.slice(1).forEach((row) => {
+    const rowDate = String(row[map.date] || '');
+    const rowToday = Number(row[map.today]) || 0;
+    total += rowToday;
+    if (rowDate === dateKey) today = rowToday;
+  });
+
+  return { today, total };
 }
 
 function rowToQuestion_(row, map, includePrivateFields) {
@@ -257,6 +350,13 @@ function setCell_(sheet, rowIndex, map, header, value) {
 
 function requireValue_(value, message) {
   if (value == null || String(value).trim() === '') throw new Error(message);
+}
+
+function normalizeDateKey_(value) {
+  const dateKey = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  const timezone = Session.getScriptTimeZone() || 'Asia/Seoul';
+  return Utilities.formatDate(new Date(), timezone, 'yyyy-MM-dd');
 }
 
 function requireAdmin_(adminPassword) {
