@@ -753,9 +753,19 @@ function initAcidRainGame(root) {
   let termBank = getAcidTermBank(currentTermGroup);
   let acidState = createAcidState();
   const touchStartQuery = window.matchMedia?.("(hover: none), (pointer: coarse)");
+  const mobileLayoutQuery = window.matchMedia?.("(max-width: 820px)");
+
+  function isAcidMobileLayout() {
+    return Boolean(
+      mobileLayoutQuery?.matches
+      || window.innerWidth <= 820
+      || touchStartQuery?.matches
+      || navigator.maxTouchPoints > 0
+    );
+  }
 
   function isAcidTouchStartDevice() {
-    return Boolean(touchStartQuery?.matches || navigator.maxTouchPoints > 0);
+    return isAcidMobileLayout();
   }
 
   function getReadyMessage() {
@@ -767,6 +777,12 @@ function initAcidRainGame(root) {
     if (!acidState.running && !acidReady.hidden) {
       acidReady.textContent = getReadyMessage();
     }
+  }
+
+  function syncAcidMobileLayout() {
+    root.classList.toggle("acid-mobile-layout", isAcidMobileLayout());
+    refreshReadyMessageForInputMode();
+    updateAcidKeyboardInset();
   }
 
   function updateAcidKeyboardInset() {
@@ -918,10 +934,12 @@ function initAcidRainGame(root) {
   function resetAcidGame(message = getReadyMessage()) {
     stopAcidTimers();
     acidState = createAcidState();
+    root.classList.remove("acid-game-running");
     acidArena.querySelectorAll(".acid-drop").forEach((item) => item.remove());
     acidReady.textContent = message;
     acidReady.hidden = false;
     acidAnswer.value = "";
+    acidAnswer.blur();
     acidAnswer.disabled = true;
     acidSubmit.disabled = true;
     acidResult.classList.remove("show");
@@ -957,10 +975,12 @@ function initAcidRainGame(root) {
   function endAcidGame() {
     const termLabel = getAcidTermLabel(currentTermGroup);
     acidState.running = false;
+    root.classList.remove("acid-game-running");
     if (acidState.startedAt) {
       acidState.elapsedMs = Math.max(acidState.elapsedMs, performance.now() - acidState.startedAt);
     }
     stopAcidTimers();
+    acidAnswer.blur();
     acidAnswer.disabled = true;
     acidSubmit.disabled = true;
     updateAcidStatus();
@@ -975,7 +995,7 @@ function initAcidRainGame(root) {
     if (acidRankName) {
       acidRankName.value = "";
       acidRankName.disabled = false;
-      acidRankName.focus();
+      if (!isAcidMobileLayout()) acidRankName.focus();
     }
     if (acidRankSubmit) acidRankSubmit.disabled = false;
     if (acidRankMessage) acidRankMessage.textContent = "";
@@ -1025,11 +1045,23 @@ function initAcidRainGame(root) {
     }
     resetAcidGame("");
     acidState.running = true;
+    root.classList.add("acid-game-running");
     acidState.startedAt = performance.now();
     acidReady.hidden = true;
     acidAnswer.disabled = false;
     acidSubmit.disabled = false;
-    acidAnswer.focus();
+    if (isAcidMobileLayout()) {
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+      try {
+        acidAnswer.focus({ preventScroll: true });
+      } catch (error) {
+        acidAnswer.focus();
+      }
+      requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+    } else {
+      acidAnswer.focus();
+    }
     acidState.nextDropAt = acidState.startedAt;
     acidState.timerId = setInterval(updateAcidElapsedTime, 250);
     updateAcidElapsedTime();
@@ -1082,6 +1114,7 @@ function initAcidRainGame(root) {
 
   if (acidArena && acidForm) {
     syncAcidModeUI();
+    syncAcidMobileLayout();
     resetAcidGame();
     renderAcidRankings();
     root.addEventListener("click", (event) => {
@@ -1096,6 +1129,10 @@ function initAcidRainGame(root) {
     acidArena.addEventListener("pointerdown", handleAcidArenaPointerStart);
     document.addEventListener("keydown", handleAcidKeydown);
     touchStartQuery?.addEventListener?.("change", refreshReadyMessageForInputMode);
+    touchStartQuery?.addListener?.(refreshReadyMessageForInputMode);
+    mobileLayoutQuery?.addEventListener?.("change", syncAcidMobileLayout);
+    mobileLayoutQuery?.addListener?.(syncAcidMobileLayout);
+    window.addEventListener("resize", syncAcidMobileLayout);
     window.visualViewport?.addEventListener("resize", updateAcidKeyboardInset);
     window.visualViewport?.addEventListener("scroll", updateAcidKeyboardInset);
     updateAcidKeyboardInset();

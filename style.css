@@ -1265,6 +1265,112 @@ tbody th {
   margin: 0;
 }
 
+#acidRainGame.acid-mobile-layout.active {
+  padding-bottom: 112px;
+  scroll-margin-top: 78px;
+}
+
+#acidRainGame.acid-mobile-layout .game-heading-row {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+#acidRainGame.acid-mobile-layout .game-heading-row p {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+#acidRainGame.acid-mobile-layout .timeline-title-row {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+#acidRainGame.acid-mobile-layout .game-actions {
+  gap: 8px;
+}
+
+#acidRainGame.acid-mobile-layout .game-actions .button {
+  flex: 1 1 0;
+}
+
+#acidRainGame.acid-mobile-layout .acid-status {
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+#acidRainGame.acid-mobile-layout .acid-status span {
+  min-height: 30px;
+  flex: 0 0 auto;
+  padding: 0 9px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+#acidRainGame.acid-mobile-layout .acid-arena {
+  height: 50vh;
+  height: 50svh;
+  min-height: 260px;
+  max-height: 430px;
+  border-radius: 0;
+  margin-inline: -24px;
+  border-inline: 0;
+}
+
+#acidRainGame.acid-mobile-layout .acid-ready {
+  padding: 18px;
+  font-size: 0.98rem;
+}
+
+#acidRainGame.acid-mobile-layout .acid-drop {
+  max-width: min(48vw, 150px);
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 0.88rem;
+}
+
+#acidRainGame.acid-mobile-layout .acid-input-row {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--acid-keyboard-inset, 0px);
+  bottom: calc(var(--acid-keyboard-inset, 0px) + env(safe-area-inset-bottom));
+  z-index: 30;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(251, 250, 246, 0.98);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -12px 28px rgba(30, 37, 43, 0.14);
+}
+
+#acidRainGame.acid-mobile-layout .acid-input-row label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+#acidRainGame.acid-mobile-layout .acid-input-row input {
+  min-height: 46px;
+}
+
+#acidRainGame.acid-mobile-layout .acid-input-row .button {
+  min-width: 72px;
+  min-height: 46px;
+  padding: 0 14px;
+}
+
+#acidRainGame.acid-mobile-layout.acid-game-running .acid-ranking {
+  display: none;
+}
+
 @media (max-width: 820px) {
   .site-header {
     padding: 0 18px;
