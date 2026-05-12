@@ -834,8 +834,9 @@ function initAcidRainGame(root) {
     const viewportTop = window.visualViewport?.offsetTop || 0;
     const inputHeight = Math.ceil(acidForm?.offsetHeight || 68);
     const statusHeight = Math.ceil(acidStatus?.offsetHeight || 38);
-    const isIOSViewport = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const isIPadViewport = /iPad/.test(navigator.userAgent)
       || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isIOSViewport = isIPadViewport || /iPhone|iPod/.test(navigator.userAgent);
 
     root.style.setProperty("--acid-visual-height", `${viewportHeight}px`);
     root.style.setProperty("--acid-visual-top", `${viewportTop}px`);
@@ -849,9 +850,12 @@ function initAcidRainGame(root) {
       window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop
     );
     const keyboardInset = viewportInset > 80 ? viewportInset : 0;
-    const keyboardSnug = keyboardInset > 0 && isIOSViewport
+    const iosKeyboardSnug = keyboardInset > 0 && isIOSViewport
       ? Math.min(96, Math.max(56, keyboardInset * 0.18))
       : 0;
+    const keyboardSnug = keyboardInset > 0 && isIPadViewport
+      ? iosKeyboardSnug - inputHeight
+      : iosKeyboardSnug;
     root.style.setProperty("--acid-keyboard-inset", `${keyboardInset}px`);
     root.style.setProperty("--acid-keyboard-snug", `${keyboardSnug}px`);
   }
