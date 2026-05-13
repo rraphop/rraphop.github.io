@@ -842,6 +842,7 @@ function initAcidRainGame(root) {
     root.style.setProperty("--acid-visual-top", `${viewportTop}px`);
     root.style.setProperty("--acid-input-height", `${inputHeight}px`);
     root.style.setProperty("--acid-status-height", `${statusHeight}px`);
+    root.style.setProperty("--acid-ipad-arena-reduction", isIPadViewport ? `${inputHeight}px` : "0px");
     // 낙하 영역 높이 = visualViewport - 상태바 - 입력칸 (순수 CSS calc로 처리)
 
     if (!window.visualViewport) return;

@@ -1407,8 +1407,8 @@ tbody th {
   left: 0;
   right: 0;
   z-index: 46;
-  /* 낙하 영역 = visualViewport 전체 - 상태바 (입력칸이 아래로 내려가 낙하 영역 최대화) */
-  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px));
+  /* iPad에서는 입력칸 높이만큼 낙하 영역을 줄여 키보드 위 공간을 확보 */
+  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px) - var(--acid-ipad-arena-reduction, 0px));
   min-height: 80px;
   max-height: none;
   margin: 0;
@@ -1422,8 +1422,8 @@ tbody th {
 */
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-input-row {
   position: fixed;
-  /* visualViewport 하단 = 키보드 바로 위 (입력칸 높이만큼 내린 위치) */
-  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh));
+  /* iPad에서는 줄어든 낙하 영역 바로 아래, 즉 키보드 위에 입력칸을 배치 */
+  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh) - var(--acid-ipad-arena-reduction, 0px));
   left: 0;
   right: 0;
   bottom: auto;
