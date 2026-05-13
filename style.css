@@ -1417,13 +1417,12 @@ tbody th {
 
 /*
   게임 실행 중: 입력칸
-  - visualViewport 하단에 고정 = 키보드 바로 위
-  - top 대신 bottom 기준으로 배치하여 키보드 올라오면 자동으로 키보드 위에 위치
+  - visualViewport 하단에 맞춤
+  - 키보드/브라우저 보조 UI와 겹치더라도 입력칸 높이만큼 아래로 내림
 */
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-input-row {
   position: fixed;
-  /* 모바일에서는 줄어든 낙하 영역 바로 아래, 즉 키보드 위에 입력칸을 배치 */
-  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh) - var(--acid-mobile-arena-reduction, 0px));
+  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh));
   left: 0;
   right: 0;
   bottom: auto;
