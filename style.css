@@ -1407,8 +1407,8 @@ tbody th {
   left: 0;
   right: 0;
   z-index: 46;
-  /* 모바일에서는 입력칸 높이만큼 낙하 영역을 줄여 키보드 위 공간을 확보 */
-  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px) - var(--acid-mobile-arena-reduction, 0px));
+  /* 입력칸을 아래로 내린 만큼 낙하 영역을 visualViewport 하단까지 확장 */
+  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px));
   min-height: 80px;
   max-height: none;
   margin: 0;
