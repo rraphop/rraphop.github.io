@@ -834,15 +834,12 @@ function initAcidRainGame(root) {
     const viewportTop = window.visualViewport?.offsetTop || 0;
     const inputHeight = Math.ceil(acidForm?.offsetHeight || 68);
     const statusHeight = Math.ceil(acidStatus?.offsetHeight || 38);
-    const isIPadViewport = /iPad/.test(navigator.userAgent)
-      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const isIOSViewport = isIPadViewport || /iPhone|iPod/.test(navigator.userAgent);
 
     root.style.setProperty("--acid-visual-height", `${viewportHeight}px`);
     root.style.setProperty("--acid-visual-top", `${viewportTop}px`);
     root.style.setProperty("--acid-input-height", `${inputHeight}px`);
     root.style.setProperty("--acid-status-height", `${statusHeight}px`);
-    root.style.setProperty("--acid-ipad-arena-reduction", isIPadViewport ? `${inputHeight}px` : "0px");
+    root.style.setProperty("--acid-mobile-arena-reduction", isAcidMobileLayout() ? `${inputHeight}px` : "0px");
     // 낙하 영역 높이 = visualViewport - 상태바 - 입력칸 (순수 CSS calc로 처리)
 
     if (!window.visualViewport) return;
@@ -851,15 +848,7 @@ function initAcidRainGame(root) {
       window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop
     );
     const keyboardInset = viewportInset > 80 ? viewportInset : 0;
-    const iosKeyboardSnug = keyboardInset > 0 && isIOSViewport
-      ? Math.min(96, Math.max(56, keyboardInset * 0.18))
-      : 0;
-    const iPadInputLift = isIPadViewport ? inputHeight * (keyboardInset > 0 ? 2 : 1) : 0;
-    const keyboardSnug = isIPadViewport
-      ? iosKeyboardSnug - iPadInputLift
-      : iosKeyboardSnug;
     root.style.setProperty("--acid-keyboard-inset", `${keyboardInset}px`);
-    root.style.setProperty("--acid-keyboard-snug", `${keyboardSnug}px`);
   }
 
   function syncAcidModeUI() {
