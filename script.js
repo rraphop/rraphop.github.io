@@ -853,8 +853,9 @@ function initAcidRainGame(root) {
     const iosKeyboardSnug = keyboardInset > 0 && isIOSViewport
       ? Math.min(96, Math.max(56, keyboardInset * 0.18))
       : 0;
-    const keyboardSnug = keyboardInset > 0 && isIPadViewport
-      ? iosKeyboardSnug - inputHeight
+    const iPadInputLift = isIPadViewport ? inputHeight * (keyboardInset > 0 ? 2 : 1) : 0;
+    const keyboardSnug = isIPadViewport
+      ? iosKeyboardSnug - iPadInputLift
       : iosKeyboardSnug;
     root.style.setProperty("--acid-keyboard-inset", `${keyboardInset}px`);
     root.style.setProperty("--acid-keyboard-snug", `${keyboardSnug}px`);
