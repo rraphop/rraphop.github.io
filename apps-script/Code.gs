@@ -19,8 +19,11 @@ const HEADERS = [
   'answeredAt',
   'status'
 ];
-const COUNTER_HEADERS = ['key', 'value'];
-const COUNTER_KEYS = ['total', 'todayDate', 'todayCount'];
+const COUNTER_HEADERS = ['date', 'count'];
+const COUNTER_TODAY_DATE_CELL = 'I1';
+const COUNTER_TODAY_TOTAL_CELL = 'J1';
+const COUNTER_TODAY_DATE_FORMULA = '=TODAY()';
+const COUNTER_TODAY_TOTAL_FORMULA = '=IFERROR(SUM(FILTER(B:B, IFERROR(TEXT(A:A,"yyyy-mm-dd"), TO_TEXT(A:A))=TEXT(I1,"yyyy-mm-dd"))),0)';
 const DAILY_HEADERS = ['date', 'count'];
 const MONTHLY_HEADERS = ['month', 'count'];
 const COUNT_TIMEZONE = 'Asia/Seoul';
@@ -248,22 +251,16 @@ function getVisitorCount_(params) {
   lock.waitLock(10000);
   try {
     const sheet = getCounterSheet_();
-    const before = readCounterState_(sheet);
-    const todayDate = before.todayDate === currentDate ? before.todayDate : currentDate;
-    const todayCount = before.todayDate === currentDate ? before.todayCount : 0;
-    writeCounterState_(sheet, {
-      total: before.total,
-      todayDate,
-      todayCount
-    });
-
+    SpreadsheetApp.flush();
+    const total = getTotalCounterFromVisits_(sheet);
+    const today = getTodayCounterFromFormula_(sheet);
     const response = {
       success: true,
-      total: before.total,
-      today: todayCount,
+      total,
+      today,
       date: currentDate
     };
-    logVisitorCounterDebug_('count', currentDate, before, response.total, response.today, response);
+    logVisitorCounterDebug_('count', '', 0, total, today, response);
     return response;
   } finally {
     lock.releaseLock();
@@ -280,31 +277,19 @@ function recordVisit_(params) {
   lock.waitLock(10000);
   try {
     const sheet = getCounterSheet_();
-    const before = readCounterState_(sheet);
-    let todayDate = before.todayDate;
-    let todayCount = before.todayCount;
+    const addedCount = 1;
+    sheet.appendRow([currentDate, addedCount]);
+    SpreadsheetApp.flush();
 
-    if (todayDate === currentDate) {
-      todayCount += 1;
-    } else {
-      todayDate = currentDate;
-      todayCount = 1;
-    }
-
-    const total = before.total + 1;
-    writeCounterState_(sheet, {
-      total,
-      todayDate,
-      todayCount
-    });
-
+    const total = getTotalCounterFromVisits_(sheet);
+    const today = getTodayCounterFromFormula_(sheet);
     const response = {
       success: true,
       total,
-      today: todayCount,
+      today,
       date: currentDate
     };
-    logVisitorCounterDebug_('visit', currentDate, before, response.total, response.today, response);
+    logVisitorCounterDebug_('visit', currentDate, addedCount, total, today, response);
     return response;
   } finally {
     lock.releaseLock();
@@ -313,14 +298,12 @@ function recordVisit_(params) {
 
 function getTotalCounter_() {
   const sheet = getCounterSheet_();
-  return readCounterState_(sheet).total;
+  return getTotalCounterFromVisits_(sheet);
 }
 
 function getTodayVisitCount(todayDate) {
-  const targetDate = normalizeSavedCounterDate_(todayDate || getTodayDateKey_());
   const sheet = getCounterSheet_();
-  const state = readCounterState_(sheet);
-  return state.todayDate === targetDate ? state.todayCount : 0;
+  return getTodayCounterFromFormula_(sheet);
 }
 
 function initializeCounter_() {
@@ -342,8 +325,8 @@ function initializeCounter_() {
     sheet: sheet.getName(),
     backup: backupSheetName,
     total: 0,
-    todayDate: currentDate,
-    todayCount: 0
+    today: 0,
+    date: currentDate
   };
 }
 
@@ -369,90 +352,33 @@ function getUniqueSheetName_(spreadsheet, baseName) {
   return `${baseName}_${Date.now()}`;
 }
 
-function writeInitialCounterState_(sheet, todayDate) {
-  sheet.getRange(1, 1, 4, COUNTER_HEADERS.length).setValues([
-    COUNTER_HEADERS,
-    ['total', 0],
-    ['todayDate', todayDate],
-    ['todayCount', 0]
-  ]);
+function writeInitialCounterState_(sheet) {
+  ensureCounterHeaders_(sheet);
 }
 
-function readCounterState_(sheet) {
-  const values = getCounterValues_(sheet);
-  return {
-    total: Number(values.total) || 0,
-    todayDate: normalizeSavedCounterDate_(values.todayDate),
-    todayCount: Number(values.todayCount) || 0
-  };
+function getTotalCounterFromVisits_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return 0;
+
+  return sheet
+    .getRange(2, 2, lastRow - 1, 1)
+    .getValues()
+    .reduce((sum, row) => sum + (Number(row[0]) || 0), 0);
 }
 
-function writeCounterState_(sheet, state) {
-  setCounterValue_(sheet, 'total', state.total);
-  setCounterValue_(sheet, 'todayDate', state.todayDate);
-  setCounterValue_(sheet, 'todayCount', state.todayCount);
+function getTodayCounterFromFormula_(sheet) {
+  return Number(sheet.getRange(COUNTER_TODAY_TOTAL_CELL).getValue()) || 0;
 }
 
-function normalizeSavedCounterDate_(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return Utilities.formatDate(value, COUNT_TIMEZONE, 'yyyy-MM-dd');
-  }
-  return String(value == null ? '' : value).trim();
-}
-
-function logVisitorCounterDebug_(action, currentDate, before, afterTotal, afterTodayCount, response) {
+function logVisitorCounterDebug_(action, addedDate, addedCount, total, today, response) {
   Logger.log(`VisitorCounter ${JSON.stringify({
     action,
-    currentDate,
-    savedTodayDate: before.todayDate,
-    beforeTotal: before.total,
-    beforeTodayCount: before.todayCount,
-    afterTotal,
-    afterTodayCount,
+    addedDate,
+    addedCount,
+    totalFromColumnB: total,
+    todayFromJ1: today,
     responseJson: response
   })}`);
-}
-
-function getCounterValues_(sheet) {
-  return COUNTER_KEYS.reduce((values, key) => {
-    values[key] = getCounterValue_(sheet, key);
-    return values;
-  }, {});
-}
-
-function setCounterValues_(sheet, values) {
-  COUNTER_KEYS.forEach((key) => setCounterValue_(sheet, key, values[key]));
-}
-
-function getCounterValue_(sheet, key) {
-  const rowIndexes = findCounterKeyRows_(sheet, key);
-  if (rowIndexes.length === 0) return '';
-  return sheet.getRange(rowIndexes[0], 2).getValue();
-}
-
-function setCounterValue_(sheet, key, value) {
-  const rowIndexes = findCounterKeyRows_(sheet, key);
-  if (rowIndexes.length === 0) {
-    sheet.appendRow([key, value]);
-    return;
-  }
-
-  sheet.getRange(rowIndexes[0], 1, 1, COUNTER_HEADERS.length).setValues([[key, value]]);
-  rowIndexes
-    .slice(1)
-    .sort((a, b) => b - a)
-    .forEach((rowIndex) => sheet.deleteRow(rowIndex));
-}
-
-function findCounterKeyRows_(sheet, key) {
-  const values = sheet.getDataRange().getValues();
-  const targetKey = String(key || '').trim();
-  const rowIndexes = [];
-  for (let index = 1; index < values.length; index += 1) {
-    const rowKey = String(values[index][0] || '').trim();
-    if (rowKey === targetKey) rowIndexes.push(index + 1);
-  }
-  return rowIndexes;
 }
 
 function upsertDailyRecord_(date, count) {
@@ -670,12 +596,9 @@ function ensureHeaders_(sheet, headers = HEADERS) {
 }
 
 function ensureCounterHeaders_(sheet) {
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, COUNTER_HEADERS.length).setValues([COUNTER_HEADERS]);
-    return;
-  }
-
   sheet.getRange(1, 1, 1, COUNTER_HEADERS.length).setValues([COUNTER_HEADERS]);
+  sheet.getRange(COUNTER_TODAY_DATE_CELL).setFormula(COUNTER_TODAY_DATE_FORMULA);
+  sheet.getRange(COUNTER_TODAY_TOTAL_CELL).setFormula(COUNTER_TODAY_TOTAL_FORMULA);
 }
 
 function getHeaderMap_(sheet) {
