@@ -20,7 +20,8 @@ id, createdAt, affiliation, grade, name, text, private, passwordHash, answer, an
 date, today, total, updatedAt
 ```
 
-`count` 시트는 헤더 아래 요약 1행만 유지합니다. 날짜가 바뀌면 `today`는 새 날짜 기준으로 다시 세고, `total`은 계속 누적됩니다.
+`count` 시트는 방문자 1명당 1행을 만들지 않고 날짜별 1행만 유지합니다. 같은 날짜의 방문은 해당 날짜 행의 `today` 값을 갱신하고, `total`은 계속 누적됩니다.
+방문자 날짜 기준은 Apps Script의 `Asia/Seoul` 기준 하루(00:00:00~23:59:59)입니다.
 
 자동 생성되는 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트 헤더:
 
@@ -112,7 +113,7 @@ window.QNA_CONFIG = {
 ## 참고 사항
 
 - 정적 HTML에서도 동작하도록 `script.js`는 Apps Script를 JSONP 방식으로 호출합니다.
-- 방문자 카운터는 화면 표시를 빠르게 하기 위해 마지막으로 받은 숫자만 브라우저에 임시 캐시하고, 기준 데이터는 Google Sheets `count` 시트의 요약 1행에 저장합니다.
+- 방문자 카운터는 화면 표시를 빠르게 하기 위해 마지막으로 받은 숫자만 브라우저에 임시 캐시하고, 기준 데이터는 Google Sheets `count` 시트의 날짜별 행에 저장합니다.
 - 산성비 랭킹은 Google Sheets의 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트에 각각 저장되며 홈페이지에는 상위 10개 기록이 표시됩니다.
 - 같은 브라우저 탭에서 새로고침할 때 중복 카운트되지 않도록 `sessionStorage`에 오늘 카운트 여부만 임시 표시합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.

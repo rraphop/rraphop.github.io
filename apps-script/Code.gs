@@ -23,6 +23,7 @@ const COUNT_HEADERS = [
   'total',
   'updatedAt'
 ];
+const COUNT_TIMEZONE = 'Asia/Seoul';
 const ACID_RANKING_HEADERS = [
   'id',
   'createdAt',
@@ -32,8 +33,6 @@ const ACID_RANKING_HEADERS = [
   'survivalMs'
 ];
 const ACID_RANKING_LIMIT = 10;
-const COUNT_CACHE_KEY = 'visitorCountSummaryV3';
-const COUNT_CACHE_SECONDS = 300;
 
 function doGet(e) {
   return handleRequest_(e);
@@ -227,25 +226,20 @@ function deleteQuestion_(params) {
 }
 
 function getVisitorCount_(params) {
-  const dateKey = normalizeDateKey_(params.date);
-  const cached = getCachedCount_(dateKey);
-  if (cached) return cached;
-
+  const dateKey = getTodayDateKey_();
   const sheet = getCountSheet_();
   const map = getHeaderMap_(sheet);
   const summary = getCountSummary_(sheet, map, dateKey);
-  const result = {
+  compactCountRowsForDate_(sheet, map, dateKey, summary.today);
+  return {
     date: dateKey,
     today: summary.today,
     total: summary.total
   };
-  setCountSummaryRow_(sheet, map, result);
-  cacheCount_(result);
-  return result;
 }
 
 function recordVisit_(params) {
-  const dateKey = normalizeDateKey_(params.date);
+  const dateKey = getTodayDateKey_();
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -256,8 +250,7 @@ function recordVisit_(params) {
     const today = summary.today + 1;
     const total = summary.total + 1;
     const result = { date: dateKey, today, total, updatedAt };
-    setCountSummaryRow_(sheet, map, result);
-    cacheCount_(result);
+    upsertDailyCountRow_(sheet, map, result);
     return result;
   } finally {
     lock.releaseLock();
@@ -409,8 +402,9 @@ function getCountSummary_(sheet, map, dateKey) {
   return { today, total };
 }
 
-function setCountSummaryRow_(sheet, map, payload) {
-  const rowIndex = 2;
+function upsertDailyCountRow_(sheet, map, payload) {
+  const matchingRows = findCountRows_(sheet, map, payload.date);
+  const rowIndex = matchingRows.length > 0 ? matchingRows[0].rowIndex : sheet.getLastRow() + 1;
   const rowObject = {
     date: payload.date || normalizeDateKey_(),
     today: Number(payload.today) || 0,
@@ -418,40 +412,47 @@ function setCountSummaryRow_(sheet, map, payload) {
     updatedAt: payload.updatedAt || new Date().toISOString()
   };
 
-  if (sheet.getLastRow() < rowIndex) sheet.appendRow(COUNT_HEADERS.map(() => ''));
+  if (rowIndex > sheet.getLastRow()) sheet.appendRow(COUNT_HEADERS.map(() => ''));
 
   sheet.getRange(rowIndex, map.date + 1).setNumberFormat('@').setValue(rowObject.date);
   setCell_(sheet, rowIndex, map, 'today', rowObject.today);
   setCell_(sheet, rowIndex, map, 'total', rowObject.total);
   setCell_(sheet, rowIndex, map, 'updatedAt', rowObject.updatedAt);
 
-  deleteCountRowsAfterSummary_(sheet);
+  deleteCountRows_(sheet, matchingRows.slice(1));
 }
 
-function deleteCountRowsAfterSummary_(sheet) {
-  for (let rowIndex = sheet.getLastRow(); rowIndex > 2; rowIndex -= 1) {
-    sheet.deleteRow(rowIndex);
-  }
+function compactCountRowsForDate_(sheet, map, dateKey, today) {
+  const matchingRows = findCountRows_(sheet, map, dateKey);
+  if (matchingRows.length <= 1) return;
+
+  const latestTotal = matchingRows.reduce((max, item) => Math.max(max, Number(item.row[map.total]) || 0), 0);
+  const updatedAt = new Date().toISOString();
+  upsertDailyCountRow_(sheet, map, {
+    date: dateKey,
+    today,
+    total: Math.max(getCountSummary_(sheet, map, dateKey).total, latestTotal),
+    updatedAt
+  });
 }
 
-function getCachedCount_(dateKey) {
-  try {
-    const saved = CacheService.getScriptCache().get(COUNT_CACHE_KEY);
-    if (!saved) return null;
-
-    const parsed = JSON.parse(saved);
-    const total = Number(parsed.total);
-    if (!Number.isFinite(total)) return null;
-
-    return {
-      date: dateKey,
-      today: String(parsed.date || '') === dateKey ? Number(parsed.today) || 0 : 0,
-      total,
-      updatedAt: parsed.updatedAt || ''
-    };
-  } catch (error) {
-    return null;
+function findCountRows_(sheet, map, dateKey) {
+  const values = sheet.getDataRange().getValues();
+  const rows = [];
+  if (values.length <= 1) return rows;
+  for (let i = 1; i < values.length; i += 1) {
+    if (normalizeCountDateValue_(values[i][map.date]) === dateKey) {
+      rows.push({ rowIndex: i + 1, row: values[i], map });
+    }
   }
+  return rows;
+}
+
+function deleteCountRows_(sheet, rows) {
+  rows
+    .map((item) => item.rowIndex)
+    .sort((a, b) => b - a)
+    .forEach((rowIndex) => sheet.deleteRow(rowIndex));
 }
 
 function getAcidRankingGroups_() {
@@ -530,19 +531,6 @@ function normalizeRankingNumber_(value, fallback) {
   return Math.max(fallback, Math.round(number));
 }
 
-function cacheCount_(payload) {
-  try {
-    CacheService.getScriptCache().put(COUNT_CACHE_KEY, JSON.stringify({
-      date: payload.date || '',
-      today: Number(payload.today) || 0,
-      total: Number(payload.total) || 0,
-      updatedAt: payload.updatedAt || new Date().toISOString()
-    }), COUNT_CACHE_SECONDS);
-  } catch (error) {
-    // 캐시 실패 시에도 시트 저장 결과는 그대로 반환합니다.
-  }
-}
-
 function rowToQuestion_(row, map, includePrivateFields) {
   const question = {
     id: String(row[map.id] || ''),
@@ -585,19 +573,17 @@ function requireValue_(value, message) {
 function normalizeDateKey_(value) {
   const dateKey = normalizeCountDateValue_(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
-  const timezone = Session.getScriptTimeZone() || 'Asia/Seoul';
-  return Utilities.formatDate(new Date(), timezone, 'yyyy-MM-dd');
+  return getTodayDateKey_();
 }
 
 function normalizeCountDateValue_(value) {
-  const timezone = Session.getScriptTimeZone() || 'Asia/Seoul';
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return Utilities.formatDate(value, timezone, 'yyyy-MM-dd');
+    return Utilities.formatDate(value, COUNT_TIMEZONE, 'yyyy-MM-dd');
   }
 
   if (typeof value === 'number' && Number.isFinite(value)) {
     const date = new Date(Math.round((value - 25569) * 86400 * 1000));
-    return Utilities.formatDate(date, timezone, 'yyyy-MM-dd');
+    return Utilities.formatDate(date, COUNT_TIMEZONE, 'yyyy-MM-dd');
   }
 
   const raw = String(value || '').trim();
@@ -605,10 +591,14 @@ function normalizeCountDateValue_(value) {
 
   const parsed = new Date(raw);
   if (!Number.isNaN(parsed.getTime())) {
-    return Utilities.formatDate(parsed, timezone, 'yyyy-MM-dd');
+    return Utilities.formatDate(parsed, COUNT_TIMEZONE, 'yyyy-MM-dd');
   }
 
   return raw;
+}
+
+function getTodayDateKey_() {
+  return Utilities.formatDate(new Date(), COUNT_TIMEZONE, 'yyyy-MM-dd');
 }
 
 function requireAdmin_(adminPassword) {

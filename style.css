@@ -739,6 +739,86 @@ select {
   margin: 8px 0 0;
 }
 
+.timeline-result-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.timeline-result-modal[hidden] {
+  display: none;
+}
+
+.timeline-result-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(30, 37, 43, 0.54);
+  cursor: pointer;
+}
+
+.timeline-result-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+  width: min(540px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(30, 37, 43, 0.28);
+  outline: none;
+}
+
+.timeline-result-copy .eyebrow {
+  margin-bottom: 6px;
+}
+
+.timeline-result-copy h3 {
+  margin: 0;
+  font-size: clamp(1.7rem, 4vw, 2.35rem);
+  line-height: 1.18;
+}
+
+.timeline-result-copy p:last-child {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.timeline-result-modal.pass .timeline-result-copy h3 {
+  color: var(--accent-dark);
+}
+
+.timeline-result-modal.fail .timeline-result-copy h3 {
+  color: #9b3d3d;
+}
+
+.timeline-result-answer {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7fbfb;
+}
+
+.timeline-result-answer strong {
+  color: var(--accent-dark);
+}
+
+.timeline-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .acid-status {
   display: flex;
   flex-wrap: wrap;
@@ -821,6 +901,17 @@ select {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+}
+
+.acid-arena .acid-rank-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 6;
+  width: min(520px, calc(100% - 32px));
+  margin: 0;
+  box-shadow: 0 18px 38px rgba(30, 37, 43, 0.18);
+  transform: translateX(-50%);
 }
 
 .acid-rank-message {
@@ -1379,7 +1470,12 @@ tbody th {
 
 /* ─── 게임 실행 중 (acid-game-running) ─── */
 
-#acidRainGame.acid-mobile-layout.acid-game-running .acid-ranking {
+#acidRainGame.acid-mobile-layout.acid-game-running .acid-ranking,
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-ranking {
+  display: none;
+}
+
+#acidRainGame.acid-game-ended .acid-input-row {
   display: none;
 }
 
@@ -1389,8 +1485,14 @@ tbody th {
   display: none;
 }
 
+#acidRainGame.acid-mobile-layout.acid-game-ended .game-heading-row,
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-result-panel {
+  display: none;
+}
+
 /* 게임 실행 중: 상태바를 화면 최상단에 고정 */
-#acidRainGame.acid-mobile-layout.acid-game-running .acid-status {
+#acidRainGame.acid-mobile-layout.acid-game-running .acid-status,
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-status {
   position: fixed;
   top: var(--acid-visual-top, 0px);
   left: 0;
@@ -1419,6 +1521,38 @@ tbody th {
   max-height: none;
   margin: 0;
   border-width: 0 0 1px;
+}
+
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-arena {
+  position: fixed;
+  top: calc(var(--acid-visual-top, 0px) + var(--acid-status-height, 38px));
+  left: 0;
+  right: 0;
+  z-index: 46;
+  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px));
+  min-height: 180px;
+  max-height: none;
+  margin: 0;
+  border-width: 0 0 1px;
+}
+
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-rank-panel {
+  bottom: 14px;
+  grid-template-columns: 1fr auto;
+  width: min(560px, calc(100% - 24px));
+  padding: 12px;
+}
+
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-rank-panel label {
+  grid-column: 1 / -1;
+}
+
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-rank-panel input {
+  min-height: 46px;
+}
+
+#acidRainGame.acid-mobile-layout.acid-game-ended .acid-rank-message {
+  grid-column: 1 / -1;
 }
 
 /*

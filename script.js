@@ -41,7 +41,7 @@ function shuffle(items) {
 
 const visitorCounter = document.querySelector("#visitorCounter");
 const visitorSessionKey = "socialHistoryVisitorCountedDate";
-const visitorCacheKey = "socialHistoryVisitorCountCache";
+const visitorCacheKey = "socialHistoryVisitorCountCacheV2";
 const sheetApiUrl = window.QNA_CONFIG?.apiUrl
   || window.QNA_API_URL
   || "";
@@ -573,7 +573,11 @@ const timelineRoundSize = 10;
 let timelineTarget = [];
 let timelineOrder = [];
 const timelineList = document.querySelector("#timelineList");
-const timelineResult = document.querySelector("#timelineResult");
+const timelineResultModal = document.querySelector("#timelineResultModal");
+const timelineResultTitle = document.querySelector("#timelineResultTitle");
+const timelineResultSummary = document.querySelector("#timelineResultSummary");
+const timelineResultAnswer = document.querySelector("#timelineResultAnswer");
+const restartTimelineResult = document.querySelector("#restartTimelineResult");
 const timelineStatus = document.querySelector("#timelineStatus");
 const timelineBankList = document.querySelector("#timelineBankList");
 const timelineModeButtons = document.querySelectorAll("[data-timeline-mode]");
@@ -658,8 +662,7 @@ function drawTimelineRound() {
   const events = getTimelineEvents();
   timelineTarget = shuffle(events).slice(0, timelineRoundSize);
   timelineOrder = shuffle(timelineTarget);
-  timelineResult.classList.remove("show");
-  timelineResult.textContent = "";
+  closeTimelineResult();
   renderTimelineStatus();
   renderTimelineBank();
   renderTimeline();
@@ -668,8 +671,30 @@ function drawTimelineRound() {
 function correctTimelineMarkup() {
   return [...timelineTarget]
     .sort((a, b) => a.order - b.order)
-    .map((event, index) => `<li>${index + 1}. ${event.year} - ${event.title}</li>`)
+    .map((event) => `<li>${escapeHTML(event.year)} - ${escapeHTML(event.title)}</li>`)
     .join("");
+}
+
+function closeTimelineResult() {
+  if (!timelineResultModal) return;
+  timelineResultModal.hidden = true;
+  timelineResultModal.classList.remove("pass", "fail");
+}
+
+function showTimelineResult(isCorrect) {
+  if (!timelineResultModal || !timelineResultTitle || !timelineResultSummary || !timelineResultAnswer) return;
+
+  timelineResultModal.hidden = false;
+  timelineResultModal.classList.toggle("pass", isCorrect);
+  timelineResultModal.classList.toggle("fail", !isCorrect);
+  timelineResultTitle.textContent = isCorrect ? "합격입니다" : "불합격입니다";
+  timelineResultSummary.textContent = isCorrect
+    ? "10개 사건의 시간 순서를 모두 맞혔습니다."
+    : "사건이 일어난 시기를 다시 확인하세요.";
+  timelineResultAnswer.innerHTML = correctTimelineMarkup();
+  requestAnimationFrame(() => {
+    timelineResultModal.querySelector(".timeline-result-panel")?.focus();
+  });
 }
 
 function moveTimelineItem(index, direction) {
@@ -705,10 +730,22 @@ if (timelineList) {
 
   document.querySelector("#checkTimeline").addEventListener("click", () => {
     const isCorrect = timelineOrder.every((item, index, array) => index === 0 || array[index - 1].order <= item.order);
-    timelineResult.classList.add("show");
-    timelineResult.innerHTML = isCorrect
-      ? "<p>합격입니다. 10개 사건의 시간 순서를 모두 맞혔습니다.</p>"
-      : `<p>불합격입니다. 사건이 일어난 시기를 다시 확인하세요.</p><p>정답 순서</p><ol class="timeline-answer">${correctTimelineMarkup()}</ol>`;
+    showTimelineResult(isCorrect);
+  });
+
+  timelineResultModal?.addEventListener("click", (event) => {
+    if (event.target.closest("#restartTimelineResult")) return;
+    closeTimelineResult();
+  });
+
+  restartTimelineResult?.addEventListener("click", () => {
+    drawTimelineRound();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !timelineResultModal?.hidden) {
+      closeTimelineResult();
+    }
   });
 }
 
@@ -1101,6 +1138,7 @@ function initAcidRainGame(root) {
     stopAcidTimers();
     acidState = createAcidState();
     root.classList.remove("acid-game-running");
+    root.classList.remove("acid-game-ended");
     acidArena.querySelectorAll(".acid-drop").forEach((item) => item.remove());
     acidReady.textContent = message;
     acidReady.hidden = false;
@@ -1142,6 +1180,7 @@ function initAcidRainGame(root) {
     const termLabel = getAcidTermLabel(currentTermGroup);
     acidState.running = false;
     root.classList.remove("acid-game-running");
+    root.classList.add("acid-game-ended");
     if (acidState.startedAt) {
       acidState.elapsedMs = Math.max(acidState.elapsedMs, performance.now() - acidState.startedAt);
     }
@@ -1161,11 +1200,22 @@ function initAcidRainGame(root) {
     if (acidRankName) {
       acidRankName.value = "";
       acidRankName.disabled = false;
-      if (!isAcidMobileLayout()) acidRankName.focus();
     }
     if (acidRankSubmit) acidRankSubmit.disabled = false;
     if (acidRankMessage) acidRankMessage.textContent = "";
     if (acidRankForm) acidRankForm.hidden = false;
+    updateAcidViewportMetrics();
+    requestAnimationFrame(() => {
+      if (acidRankName) {
+        try {
+          acidRankName.focus({ preventScroll: true });
+        } catch {
+          acidRankName.focus();
+        }
+      }
+      updateAcidViewportMetrics();
+    });
+    setTimeout(updateAcidViewportMetrics, 350);
   }
 
   function updateAcidFrame(timestamp) {
@@ -1246,6 +1296,8 @@ function initAcidRainGame(root) {
 
   function handleAcidArenaPointerStart(event) {
     if (!isAcidTouchStartDevice() || acidState.running) return;
+    if (root.classList.contains("acid-game-ended")) return;
+    if (event.target.closest("[data-acid-rank-form]")) return;
     if (event.target.closest(".acid-drop")) return;
     startAcidGame();
   }

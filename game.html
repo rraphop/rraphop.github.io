@@ -59,7 +59,24 @@
       </div>
       <div class="timeline-status" id="timelineStatus" aria-live="polite"></div>
       <ol class="timeline-list" id="timelineList"></ol>
-      <div class="result-box" id="timelineResult" aria-live="polite"></div>
+      <div class="timeline-result-modal" id="timelineResultModal" role="dialog" aria-modal="true" aria-labelledby="timelineResultTitle" hidden>
+        <button class="timeline-result-backdrop" type="button" aria-label="결과 닫기" data-timeline-result-close></button>
+        <div class="timeline-result-panel" tabindex="-1">
+          <div class="timeline-result-copy">
+            <p class="eyebrow">Result</p>
+            <h3 id="timelineResultTitle"></h3>
+            <p id="timelineResultSummary"></p>
+          </div>
+          <div class="timeline-result-answer">
+            <strong>정답 순서</strong>
+            <ol class="timeline-answer" id="timelineResultAnswer"></ol>
+          </div>
+          <div class="timeline-result-actions">
+            <button class="button primary small" type="button" id="restartTimelineResult">다시 시작</button>
+            <button class="button secondary small" type="button" data-timeline-result-close>닫기</button>
+          </div>
+        </div>
+      </div>
       <details class="timeline-bank">
         <summary>교과서 역사 사건 은행 보기</summary>
         <div id="timelineBankList" class="timeline-bank-list"></div>
@@ -94,6 +111,12 @@
 
       <div class="acid-arena" data-acid-arena aria-label="사회 용어 산성비 게임장">
         <p class="acid-ready" data-acid-ready>터치하면 사회 용어가 떨어집니다.</p>
+        <form class="acid-result-form acid-rank-panel" data-acid-rank-form hidden>
+          <label for="acidRankName">랭킹 이름</label>
+          <input id="acidRankName" type="text" autocomplete="name" maxlength="12" placeholder="이름 입력" data-acid-rank-name>
+          <button class="button primary small" type="submit" data-acid-rank-submit>랭킹 등록</button>
+          <p class="acid-rank-message" data-acid-rank-message aria-live="polite"></p>
+        </form>
       </div>
 
       <form class="acid-input-row" data-acid-form>
@@ -105,13 +128,6 @@
       <div class="result-box acid-result-panel" data-acid-result aria-live="polite">
         <div data-acid-result-summary></div>
       </div>
-
-      <form class="acid-result-form acid-rank-panel" data-acid-rank-form hidden>
-        <label for="acidRankName">랭킹 이름</label>
-        <input id="acidRankName" type="text" autocomplete="name" maxlength="12" placeholder="이름 입력" data-acid-rank-name>
-        <button class="button primary small" type="submit" data-acid-rank-submit>랭킹 등록</button>
-        <p class="acid-rank-message" data-acid-rank-message aria-live="polite"></p>
-      </form>
 
       <section class="acid-ranking" aria-label="산성비 게임 랭킹">
         <h3>산성비 게임 랭킹</h3>
