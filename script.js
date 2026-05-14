@@ -41,6 +41,7 @@ function shuffle(items) {
 
 const visitorCounter = document.querySelector("#visitorCounter");
 const visitorCacheKey = "socialHistoryVisitorCountCacheV3";
+const visitorCountedDateKey = "socialHistoryVisitorCountedDateV1";
 const sheetApiUrl = window.QNA_CONFIG?.apiUrl
   || window.QNA_API_URL
   || "";
@@ -120,6 +121,22 @@ function clearCachedVisitorCounter() {
   }
 }
 
+function hasCountedVisitorToday(todayKey) {
+  try {
+    return localStorage.getItem(visitorCountedDateKey) === todayKey;
+  } catch {
+    return false;
+  }
+}
+
+function markVisitorCounted(dateKey) {
+  try {
+    localStorage.setItem(visitorCountedDateKey, dateKey);
+  } catch {
+    // localStorage가 막힌 환경에서는 서버 응답 표시만 유지합니다.
+  }
+}
+
 function visitorApiRequest(action, params = {}) {
   return sheetsApiRequest(action, params, {
     callbackPrefix: "__visitorCallback",
@@ -169,8 +186,10 @@ async function updateVisitorCounter() {
   clearCachedVisitorCounter();
 
   try {
-    const data = await visitorApiRequest("visit", { date: todayKey });
+    const alreadyCountedToday = hasCountedVisitorToday(todayKey);
+    const data = await visitorApiRequest(alreadyCountedToday ? "count" : "visit", { date: todayKey });
     console.log("[visitor-counter] response", data);
+    if (!alreadyCountedToday) markVisitorCounted(data.date || todayKey);
     renderVisitorCounter(data.today, data.total);
   } catch (error) {
     console.warn(error);
