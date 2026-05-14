@@ -920,6 +920,15 @@ select {
   color: var(--accent-dark);
 }
 
+.acid-rank-entry {
+  display: contents;
+}
+
+.acid-rank-entry[hidden] {
+  display: none !important;
+}
+
+.acid-rank-panel.acid-rank-complete [data-acid-rank-entry],
 .acid-rank-panel.acid-rank-complete [data-acid-rank-label],
 .acid-rank-panel.acid-rank-complete [data-acid-rank-name],
 .acid-rank-panel.acid-rank-complete [data-acid-rank-submit] {

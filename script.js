@@ -845,6 +845,7 @@ function initAcidRainGame(root) {
   const acidResult = root.querySelector("[data-acid-result]");
   const acidResultSummary = root.querySelector("[data-acid-result-summary]");
   const acidRankForm = root.querySelector("[data-acid-rank-form]");
+  const acidRankEntry = root.querySelector("[data-acid-rank-entry]");
   const acidRankLabel = root.querySelector("[data-acid-rank-label]");
   const acidRankName = root.querySelector("[data-acid-rank-name]");
   const acidRankSubmit = root.querySelector("[data-acid-rank-submit]");
@@ -1168,13 +1169,22 @@ function initAcidRainGame(root) {
 
   function showAcidRankEntryControls() {
     acidRankForm?.classList.remove("acid-rank-complete");
+    if (acidRankEntry && acidRankForm && !acidRankEntry.isConnected) {
+      acidRankForm.insertBefore(acidRankEntry, acidPostRankActions || acidRankMessage || null);
+    }
+    if (acidRankEntry) {
+      acidRankEntry.hidden = false;
+      acidRankEntry.style.removeProperty("display");
+    }
     if (acidRankLabel) acidRankLabel.hidden = false;
     if (acidRankName) {
       acidRankName.hidden = false;
+      acidRankName.style.removeProperty("display");
       acidRankName.disabled = false;
     }
     if (acidRankSubmit) {
       acidRankSubmit.hidden = false;
+      acidRankSubmit.style.removeProperty("display");
       acidRankSubmit.disabled = false;
     }
     if (acidPostRankActions) acidPostRankActions.hidden = true;
@@ -1182,13 +1192,16 @@ function initAcidRainGame(root) {
 
   function showAcidPostRankActions() {
     acidRankForm?.classList.add("acid-rank-complete");
+    acidRankEntry?.remove();
     if (acidRankLabel) acidRankLabel.hidden = true;
     if (acidRankName) {
       acidRankName.hidden = true;
+      acidRankName.style.display = "none";
       acidRankName.disabled = true;
     }
     if (acidRankSubmit) {
       acidRankSubmit.hidden = true;
+      acidRankSubmit.style.display = "none";
       acidRankSubmit.disabled = true;
     }
     if (acidPostRankActions) acidPostRankActions.hidden = false;

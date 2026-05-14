@@ -112,9 +112,11 @@
       <div class="acid-arena" data-acid-arena aria-label="사회 용어 산성비 게임장">
         <p class="acid-ready" data-acid-ready>터치하면 사회 용어가 떨어집니다.</p>
         <form class="acid-result-form acid-rank-panel" data-acid-rank-form hidden>
-          <label for="acidRankName" data-acid-rank-label>랭킹 이름</label>
-          <input id="acidRankName" type="text" autocomplete="name" maxlength="12" placeholder="이름 입력" data-acid-rank-name>
-          <button class="button primary small" type="submit" data-acid-rank-submit>랭킹 등록</button>
+          <div class="acid-rank-entry" data-acid-rank-entry>
+            <label for="acidRankName" data-acid-rank-label>랭킹 이름</label>
+            <input id="acidRankName" type="text" autocomplete="name" maxlength="12" placeholder="이름 입력" data-acid-rank-name>
+            <button class="button primary small" type="submit" data-acid-rank-submit>랭킹 등록</button>
+          </div>
           <div class="acid-post-rank-actions" data-acid-post-rank-actions hidden>
             <button class="button primary small" type="button" data-acid-restart>다시하기</button>
             <button class="button secondary small" type="button" data-acid-exit>나가기</button>
