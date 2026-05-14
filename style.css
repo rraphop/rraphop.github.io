@@ -320,6 +320,17 @@ a {
   font-size: 1.08rem;
 }
 
+.quiz-heading {
+  max-width: 100%;
+}
+
+@media (min-width: 900px) {
+  .quiz-heading-description {
+    font-size: clamp(0.9rem, 1.22vw, 1.08rem);
+    white-space: nowrap;
+  }
+}
+
 .section {
   margin-top: 28px;
 }
