@@ -226,7 +226,7 @@ function createTermQuestion(unit, termEntry, termIndex, variantIndex) {
   const [term, clue, sentence, aliases = []] = termEntry;
   const answers = [term, ...aliases];
   const base = {
-    id: `${unit.id}-${termIndex}-${variantIndex}`,
+    id: `${unit.id}-${termIndex}`,
     term,
     answers,
     explanation: `${term}: ${clue}`
@@ -234,42 +234,24 @@ function createTermQuestion(unit, termEntry, termIndex, variantIndex) {
 
   const templates = [
     {
-      type: "용어 질문",
+      type: "단답형",
       question: `${clue}에 해당하는 용어를 쓰시오.`
     },
     {
-      type: "빈칸 채우기",
-      question: `빈칸에 들어갈 알맞은 용어를 쓰시오. ${sentence}`
-    },
-    {
-      type: "단어 질문",
-      question: `다음 설명의 핵심 단어를 쓰시오. ${clue}`
-    },
-    {
-      type: "시험 대비",
-      question: `${unit.title} 단원의 핵심 개념입니다. ${clue} 이 용어는 무엇인가?`
-    },
-    {
-      type: "중간 용어 넣기",
+      type: "괄호 넣기",
       question: sentence.replace("____", "(        )")
-    },
-    {
-      type: "개념 확인",
-      question: `교과서 핵심어 확인: ${clue} 한 단어 또는 짧은 용어로 쓰시오.`
     }
   ];
 
   return {
     ...base,
-    ...templates[variantIndex]
+    ...templates[termIndex % templates.length]
   };
 }
 
 function createQuestionPool(unit) {
-  return unit.terms.flatMap((termEntry, termIndex) => (
-    Array.from({ length: 6 }, (_, variantIndex) => (
-      createTermQuestion(unit, termEntry, termIndex, variantIndex)
-    ))
+  return unit.terms.map((termEntry, termIndex) => (
+    createTermQuestion(unit, termEntry, termIndex)
   ));
 }
 
