@@ -262,6 +262,7 @@ function recordVisit_(params) {
     appendVisitLog_(currentDate, total);
     const todayInfo = getTodayVisitCountInfo_(currentDate);
     syncCounterToday_(currentDate, todayInfo.today);
+    logTodayVisitDebug_('visit', currentDate, todayInfo, total);
     return {
       success: true,
       date: currentDate,
@@ -300,25 +301,34 @@ function getTodayVisitCount(todayDate) {
 
 function getTodayVisitCountInfo_(todayDate) {
   const normalizedToday = normalizeDateKey_(todayDate, getTodayDateKey_());
-  const logInfo = getVisitLogSheetInfo_(normalizedToday);
-  const sheet = logInfo.sheet;
-  const values = sheet.getDataRange().getValues();
+  const logInfos = getVisitLogSheetInfos_();
+  const sheetNames = [];
+  let readRowCount = 0;
   let matchedRows = 0;
   let today = 0;
 
-  values.slice(1).forEach((row) => {
-    const rowDate = normalizeDate(row[logInfo.dateColumnIndex]);
-    if (rowDate !== normalizedToday) return;
+  logInfos.forEach((logInfo) => {
+    const sheet = logInfo.sheet;
+    const values = sheet.getDataRange().getValues();
+    const dataRows = values.length > 1 ? values.slice(1) : [];
+    sheetNames.push(sheet.getName());
+    readRowCount += dataRows.length;
 
-    matchedRows += 1;
-    today += getVisitLogRowCount_(row, logInfo.countColumnIndex);
+    dataRows.forEach((row) => {
+      const rowDate = normalizeDate(row[logInfo.dateColumnIndex]);
+      if (rowDate !== normalizedToday) return;
+
+      matchedRows += 1;
+      today += getVisitLogRowCount_(row, logInfo.countColumnIndex);
+    });
   });
 
   return {
     today,
     todayDate: normalizedToday,
+    readRowCount,
     matchedRows,
-    sheetName: sheet.getName()
+    sheetName: sheetNames.join(', ')
   };
 }
 
@@ -333,6 +343,24 @@ function appendVisitLog_(dateKey, total) {
   if (logInfo.totalColumnIndex != null) row[logInfo.totalColumnIndex] = total;
 
   sheet.appendRow(row);
+}
+
+function getVisitLogSheetInfos_() {
+  const spreadsheet = getSpreadsheet_();
+  const infos = [];
+
+  [LEGACY_COUNT_SHEET_NAME, DAILY_SHEET_NAME].forEach((sheetName) => {
+    const sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet) return;
+
+    const info = getVisitLogSheetInfoFromSheet_(sheet);
+    if (info.hasDateColumn) infos.push(info);
+  });
+
+  if (infos.length > 0) return infos;
+
+  const dailySheet = getDailySheet_();
+  return [getVisitLogSheetInfoFromSheet_(dailySheet)];
 }
 
 function getVisitLogSheetInfo_(targetDate) {
@@ -420,8 +448,7 @@ function countMatchingVisitRows_(logInfo, targetDate) {
 function getVisitLogRowCount_(row, countColumnIndex) {
   if (countColumnIndex == null) return 1;
 
-  const count = normalizeCounterNumber_(row[countColumnIndex], 0);
-  return count > 0 ? count : 1;
+  return normalizeCounterNumber_(row[countColumnIndex], 0);
 }
 
 function logTodayVisitDebug_(action, todayDate, todayInfo, total) {
@@ -429,6 +456,7 @@ function logTodayVisitDebug_(action, todayDate, todayInfo, total) {
     action,
     todayDate,
     logSheetName: todayInfo.sheetName,
+    readRowCount: todayInfo.readRowCount,
     matchedRows: todayInfo.matchedRows,
     summedToday: todayInfo.today,
     total,
