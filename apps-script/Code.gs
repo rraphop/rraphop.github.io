@@ -1,7 +1,7 @@
 const SHEET_NAME = 'QNA';
 const COUNTER_SHEET_NAME = 'count';
-const DAILY_SHEET_NAME = 'Daily';
-const MONTHLY_SHEET_NAME = 'Monthly';
+const DAILY_SHEET_NAME = 'daily_count';
+const MONTHLY_SHEET_NAME = 'monthly_count';
 const ACID_RANKING_SHEET_NAMES = {
   social: '사회 산성비 랭킹',
   history: '역사 산성비 랭킹'
@@ -19,11 +19,8 @@ const HEADERS = [
   'answeredAt',
   'status'
 ];
-const COUNTER_HEADERS = ['date', 'count'];
-const COUNTER_TODAY_DATE_CELL = 'I1';
-const COUNTER_TODAY_TOTAL_CELL = 'J1';
-const COUNTER_TODAY_DATE_FORMULA = '=TODAY()';
-const COUNTER_TODAY_TOTAL_FORMULA = '=IFERROR(SUM(FILTER(B:B, IFERROR(TEXT(A:A,"yyyy-mm-dd"), TO_TEXT(A:A))=TEXT(I1,"yyyy-mm-dd"))),0)';
+const COUNTER_HEADERS = ['key', 'value'];
+const COUNTER_KEYS = ['total', 'todayDate', 'todayCount'];
 const DAILY_HEADERS = ['date', 'count'];
 const MONTHLY_HEADERS = ['month', 'count'];
 const COUNT_TIMEZONE = 'Asia/Seoul';
@@ -51,10 +48,34 @@ function setupSheets() {
 }
 
 function initializeCounter() {
+  return initializeCounterSheets();
+}
+
+function initializeCounterSheets() {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    return initializeCounter_();
+    return initializeCounterSheets_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function rebuildMonthlyCounts() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    return rebuildMonthlyCounts_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function cleanupOldDailyCounts() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    return cleanupOldDailyCounts_();
   } finally {
     lock.releaseLock();
   }
@@ -109,6 +130,15 @@ function handleRequest_(e) {
         break;
       case 'setupSheets':
         result = setupSheets_();
+        break;
+      case 'initializeCounterSheets':
+        result = initializeCounterSheets();
+        break;
+      case 'rebuildMonthlyCounts':
+        result = rebuildMonthlyCounts();
+        break;
+      case 'cleanupOldDailyCounts':
+        result = cleanupOldDailyCounts();
         break;
       case 'cleanupOldDailyRecords':
         result = cleanupOldDailyRecords();
@@ -247,20 +277,26 @@ function deleteQuestion_(params) {
 
 function getVisitorCount_(params) {
   const currentDate = getTodayDateKey_();
+  const currentMonth = getCurrentMonthKey_();
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     const sheet = getCounterSheet_();
-    SpreadsheetApp.flush();
-    const total = getTotalCounterFromVisits_(sheet);
-    const today = getTodayCounterFromFormula_(sheet);
+    const state = readCounterState_(sheet);
+    const today = state.todayDate === currentDate ? state.todayCount : 0;
     const response = {
       success: true,
-      total,
+      total: state.total,
       today,
       date: currentDate
     };
-    logVisitorCounterDebug_('count', '', 0, total, today, response);
+    logVisitorCounterDebug_('count', {
+      currentDate,
+      currentMonth,
+      beforeState: state,
+      afterState: state,
+      responseJson: response
+    });
     return response;
   } finally {
     lock.releaseLock();
@@ -273,23 +309,46 @@ function recordVisit() {
 
 function recordVisit_(params) {
   const currentDate = getTodayDateKey_();
+  const currentMonth = getCurrentMonthKey_();
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     const sheet = getCounterSheet_();
-    const addedCount = 1;
-    sheet.appendRow([currentDate, addedCount]);
-    SpreadsheetApp.flush();
+    const beforeState = readCounterState_(sheet);
+    let total = beforeState.total;
+    let todayDate = beforeState.todayDate;
+    let todayCount = beforeState.todayCount;
+    let dailyResult = null;
+    let monthlyResult = null;
 
-    const total = getTotalCounterFromVisits_(sheet);
-    const today = getTodayCounterFromFormula_(sheet);
+    if (todayDate === currentDate) {
+      todayCount += 1;
+    } else {
+      dailyResult = saveDailyCount_(todayDate, todayCount);
+      monthlyResult = saveMonthlyCount_(todayDate, todayCount, dailyResult);
+      todayDate = currentDate;
+      todayCount = 1;
+    }
+
+    total += 1;
+    const afterState = { total, todayDate, todayCount };
+    writeCounterState_(sheet, afterState);
+
     const response = {
       success: true,
       total,
-      today,
+      today: todayCount,
       date: currentDate
     };
-    logVisitorCounterDebug_('visit', currentDate, addedCount, total, today, response);
+    logVisitorCounterDebug_('visit', {
+      currentDate,
+      currentMonth,
+      beforeState,
+      archivedDaily: dailyResult,
+      archivedMonthly: monthlyResult,
+      afterState,
+      responseJson: response
+    });
     return response;
   } finally {
     lock.releaseLock();
@@ -298,15 +357,17 @@ function recordVisit_(params) {
 
 function getTotalCounter_() {
   const sheet = getCounterSheet_();
-  return getTotalCounterFromVisits_(sheet);
+  return readCounterState_(sheet).total;
 }
 
 function getTodayVisitCount(todayDate) {
+  const targetDate = normalizeCounterDateKey_(todayDate || getTodayDateKey_());
   const sheet = getCounterSheet_();
-  return getTodayCounterFromFormula_(sheet);
+  const state = readCounterState_(sheet);
+  return state.todayDate === targetDate ? state.todayCount : 0;
 }
 
-function initializeCounter_() {
+function initializeCounterSheets_() {
   const spreadsheet = getSpreadsheet_();
   const currentDate = getTodayDateKey_();
   let sheet = spreadsheet.getSheetByName(COUNTER_SHEET_NAME);
@@ -320,9 +381,11 @@ function initializeCounter_() {
   }
 
   writeInitialCounterState_(sheet, currentDate);
+  const dailySheet = getDailySheet_();
+  const monthlySheet = getMonthlySheet_();
   return {
     success: true,
-    sheet: sheet.getName(),
+    sheets: [sheet.getName(), dailySheet.getName(), monthlySheet.getName()],
     backup: backupSheetName,
     total: 0,
     today: 0,
@@ -352,101 +415,232 @@ function getUniqueSheetName_(spreadsheet, baseName) {
   return `${baseName}_${Date.now()}`;
 }
 
-function writeInitialCounterState_(sheet) {
-  ensureCounterHeaders_(sheet);
+function writeInitialCounterState_(sheet, todayDate) {
+  sheet.getRange(1, 1, 4, COUNTER_HEADERS.length).setValues([
+    COUNTER_HEADERS,
+    ['total', 0],
+    ['todayDate', todayDate],
+    ['todayCount', 0]
+  ]);
 }
 
-function getTotalCounterFromVisits_(sheet) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return 0;
-
-  return sheet
-    .getRange(2, 2, lastRow - 1, 1)
-    .getValues()
-    .reduce((sum, row) => sum + (Number(row[0]) || 0), 0);
+function readCounterState_(sheet) {
+  const values = getCounterValues_(sheet);
+  return {
+    total: normalizeCounterNumber_(values.total, 0),
+    todayDate: normalizeCounterDateKey_(values.todayDate),
+    todayCount: normalizeCounterNumber_(values.todayCount, 0)
+  };
 }
 
-function getTodayCounterFromFormula_(sheet) {
-  return Number(sheet.getRange(COUNTER_TODAY_TOTAL_CELL).getValue()) || 0;
+function writeCounterState_(sheet, state) {
+  setCounterValue_(sheet, 'total', normalizeCounterNumber_(state.total, 0));
+  setCounterValue_(sheet, 'todayDate', normalizeCounterDateKey_(state.todayDate, getTodayDateKey_()));
+  setCounterValue_(sheet, 'todayCount', normalizeCounterNumber_(state.todayCount, 0));
 }
 
-function logVisitorCounterDebug_(action, addedDate, addedCount, total, today, response) {
-  Logger.log(`VisitorCounter ${JSON.stringify({
-    action,
-    addedDate,
-    addedCount,
-    totalFromColumnB: total,
-    todayFromJ1: today,
-    responseJson: response
-  })}`);
+function getCounterValues_(sheet) {
+  return COUNTER_KEYS.reduce((values, key) => {
+    values[key] = getCounterValue_(sheet, key);
+    return values;
+  }, {});
 }
 
-function upsertDailyRecord_(date, count) {
-  const dateKey = normalizeDate(date);
-  const value = normalizeCounterNumber_(count, 0);
-  if (!dateKey || value <= 0) return;
+function getCounterValue_(sheet, key) {
+  const rowIndexes = findCounterKeyRows_(sheet, key);
+  if (rowIndexes.length === 0) return '';
+  return sheet.getRange(rowIndexes[0], 2).getValue();
+}
 
-  const sheet = getDailySheet_();
-  const rowIndex = findTwoColumnRow_(sheet, dateKey);
-  if (rowIndex) {
-    sheet.getRange(rowIndex, 2).setValue(value);
-  } else {
-    sheet.appendRow([dateKey, value]);
+function setCounterValue_(sheet, key, value) {
+  const rowIndexes = findCounterKeyRows_(sheet, key);
+  if (rowIndexes.length === 0) {
+    sheet.appendRow([key, value]);
+    return;
   }
+
+  sheet.getRange(rowIndexes[0], 1, 1, COUNTER_HEADERS.length).setValues([[key, value]]);
+  rowIndexes
+    .slice(1)
+    .sort((a, b) => b - a)
+    .forEach((rowIndex) => sheet.deleteRow(rowIndex));
 }
 
-function addMonthlyRecord_(month, count) {
-  const monthKey = String(month || '').trim();
-  const value = normalizeCounterNumber_(count, 0);
-  if (!/^\d{4}-\d{2}$/.test(monthKey) || value <= 0) return;
-
-  const sheet = getMonthlySheet_();
-  const rowIndex = findTwoColumnRow_(sheet, monthKey);
-  if (rowIndex) {
-    const current = normalizeCounterNumber_(sheet.getRange(rowIndex, 2).getValue(), 0);
-    sheet.getRange(rowIndex, 2).setValue(current + value);
-  } else {
-    sheet.appendRow([monthKey, value]);
+function findCounterKeyRows_(sheet, key) {
+  const values = sheet.getDataRange().getValues();
+  const targetKey = String(key || '').trim();
+  const rowIndexes = [];
+  for (let index = 1; index < values.length; index += 1) {
+    const rowKey = String(values[index][0] || '').trim();
+    if (rowKey === targetKey) rowIndexes.push(index + 1);
   }
+  return rowIndexes;
 }
 
-function cleanupOldDailyRecords() {
+function normalizeCounterDateKey_(value, fallback) {
+  const dateKey = normalizeDate(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  return fallback || '';
+}
+
+function saveDailyCount(date, count) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    return cleanupOldDailyRecords_();
+    return saveDailyCount_(date, count);
   } finally {
     lock.releaseLock();
   }
 }
 
+function saveDailyCount_(date, count) {
+  const dateKey = normalizeCounterDateKey_(date);
+  const value = normalizeCounterNumber_(count, 0);
+  if (!dateKey || value <= 0) {
+    return { success: true, saved: false, date: dateKey, count: value, delta: 0 };
+  }
+
+  const sheet = getDailySheet_();
+  const rowIndex = findTwoColumnRow_(sheet, dateKey);
+  const previousCount = rowIndex
+    ? normalizeCounterNumber_(sheet.getRange(rowIndex, 2).getValue(), 0)
+    : 0;
+
+  if (rowIndex) {
+    sheet.getRange(rowIndex, 2).setValue(value);
+  } else {
+    sheet.appendRow([dateKey, value]);
+  }
+
+  return {
+    success: true,
+    saved: true,
+    date: dateKey,
+    count: value,
+    previousCount,
+    delta: value - previousCount
+  };
+}
+
+function saveMonthlyCount(date, count) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    return saveMonthlyCount_(date, count);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function saveMonthlyCount_(date, count, dailyResult) {
+  const dateKey = normalizeCounterDateKey_(date);
+  const value = normalizeCounterNumber_(count, 0);
+  if (!dateKey || value <= 0) {
+    return { success: true, saved: false, month: '', count: value, delta: 0 };
+  }
+
+  if (!dailyResult) return rebuildMonthlyCounts_();
+
+  const monthKey = dateKey.slice(0, 7);
+  const delta = Number(dailyResult.delta) || 0;
+  if (delta === 0) {
+    return { success: true, saved: false, month: monthKey, count: value, delta };
+  }
+
+  const sheet = getMonthlySheet_();
+  const rowIndex = findTwoColumnRow_(sheet, monthKey);
+  const previousCount = rowIndex
+    ? normalizeCounterNumber_(sheet.getRange(rowIndex, 2).getValue(), 0)
+    : 0;
+  const nextCount = Math.max(0, previousCount + delta);
+
+  if (rowIndex) {
+    sheet.getRange(rowIndex, 2).setValue(nextCount);
+  } else {
+    sheet.appendRow([monthKey, nextCount]);
+  }
+
+  return {
+    success: true,
+    saved: true,
+    month: monthKey,
+    previousCount,
+    count: nextCount,
+    delta
+  };
+}
+
+function rebuildMonthlyCounts_() {
+  const dailySheet = getDailySheet_();
+  const values = dailySheet.getDataRange().getValues();
+  const monthlyCounts = {};
+
+  values.slice(1).forEach((row) => {
+    const dateKey = normalizeCounterDateKey_(row[0]);
+    const value = normalizeCounterNumber_(row[1], 0);
+    if (!dateKey || value <= 0) return;
+    const monthKey = dateKey.slice(0, 7);
+    monthlyCounts[monthKey] = (monthlyCounts[monthKey] || 0) + value;
+  });
+
+  const monthlySheet = getMonthlySheet_();
+  monthlySheet.clear();
+  monthlySheet.getRange(1, 1, 1, MONTHLY_HEADERS.length).setValues([MONTHLY_HEADERS]);
+
+  const rows = Object.keys(monthlyCounts)
+    .sort()
+    .map((month) => [month, monthlyCounts[month]]);
+  if (rows.length > 0) {
+    monthlySheet.getRange(2, 1, rows.length, MONTHLY_HEADERS.length).setValues(rows);
+  }
+
+  return { success: true, months: rows.length };
+}
+
+function logVisitorCounterDebug_(action, payload) {
+  Logger.log(`VisitorCounter ${JSON.stringify(Object.assign({ action }, payload))}`);
+}
+
+function upsertDailyRecord_(date, count) {
+  return saveDailyCount_(date, count);
+}
+
+function cleanupOldDailyRecords() {
+  return cleanupOldDailyCounts();
+}
+
 function cleanupOldRecords() {
-  return cleanupOldDailyRecords();
+  return cleanupOldDailyCounts();
 }
 
 function cleanupOldDailyRecords_() {
+  return cleanupOldDailyCounts_();
+}
+
+function cleanupOldDailyCounts_() {
+  const rebuildResult = rebuildMonthlyCounts_();
   const sheet = getDailySheet_();
   const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return { archived: 0 };
+  if (values.length <= 1) {
+    return { success: true, deleted: 0, monthlyRebuild: rebuildResult };
+  }
 
   const cutoffKey = getDateKeyDaysAgo_(DAILY_KEEP_DAYS);
-  const monthlyCounts = {};
   const rowsToDelete = [];
 
   values.slice(1).forEach((row, index) => {
     const dateKey = normalizeDate(row[0]);
     if (!dateKey || dateKey >= cutoffKey) return;
-    const count = normalizeCounterNumber_(row[1], 0);
-    if (count > 0) {
-      const monthKey = dateKey.slice(0, 7);
-      monthlyCounts[monthKey] = (monthlyCounts[monthKey] || 0) + count;
-    }
     rowsToDelete.push(index + 2);
   });
 
-  Object.keys(monthlyCounts).forEach((month) => addMonthlyRecord_(month, monthlyCounts[month]));
   rowsToDelete.sort((a, b) => b - a).forEach((rowIndex) => sheet.deleteRow(rowIndex));
-  return { archived: rowsToDelete.length };
+  return {
+    success: true,
+    cutoffDate: cutoffKey,
+    deleted: rowsToDelete.length,
+    monthlyRebuild: rebuildResult
+  };
 }
 
 function findTwoColumnRow_(sheet, key) {
@@ -597,8 +791,6 @@ function ensureHeaders_(sheet, headers = HEADERS) {
 
 function ensureCounterHeaders_(sheet) {
   sheet.getRange(1, 1, 1, COUNTER_HEADERS.length).setValues([COUNTER_HEADERS]);
-  sheet.getRange(COUNTER_TODAY_DATE_CELL).setFormula(COUNTER_TODAY_DATE_FORMULA);
-  sheet.getRange(COUNTER_TODAY_TOTAL_CELL).setFormula(COUNTER_TODAY_TOTAL_FORMULA);
 }
 
 function getHeaderMap_(sheet) {
@@ -779,6 +971,10 @@ function normalizeCountDateValue_(value) {
 
 function getTodayDateKey_() {
   return Utilities.formatDate(new Date(), COUNT_TIMEZONE, 'yyyy-MM-dd');
+}
+
+function getCurrentMonthKey_() {
+  return Utilities.formatDate(new Date(), COUNT_TIMEZONE, 'yyyy-MM');
 }
 
 function requireAdmin_(adminPassword) {

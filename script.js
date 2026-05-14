@@ -1167,6 +1167,7 @@ function initAcidRainGame(root) {
   }
 
   function showAcidRankEntryControls() {
+    acidRankForm?.classList.remove("acid-rank-complete");
     if (acidRankLabel) acidRankLabel.hidden = false;
     if (acidRankName) {
       acidRankName.hidden = false;
@@ -1180,6 +1181,7 @@ function initAcidRainGame(root) {
   }
 
   function showAcidPostRankActions() {
+    acidRankForm?.classList.add("acid-rank-complete");
     if (acidRankLabel) acidRankLabel.hidden = true;
     if (acidRankName) {
       acidRankName.hidden = true;
