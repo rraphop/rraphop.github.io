@@ -1,12 +1,12 @@
-# Google Sheets + Apps Script Q&A/방문자 카운터 설정
+# Google Sheets + Apps Script Q&A/방문자 카운터/랭킹 설정
 
-현재 `qna.html`의 디자인과 게시판 구성은 그대로 두고, 질문/답변 데이터와 `index.html` 방문자 카운터를 Google Sheets에 저장하도록 연결합니다.
+현재 `qna.html`의 디자인과 게시판 구성은 그대로 두고, 질문/답변 데이터, `index.html` 방문자 카운터, `game.html` 산성비 게임 랭킹을 Google Sheets에 저장하도록 연결합니다.
 
 ## 1. Google Sheets 만들기
 
 1. Google Drive에서 새 스프레드시트를 만듭니다.
 2. 문서 이름은 예를 들어 `사회역사 QNA 게시판`으로 정합니다.
-3. 시트 탭 이름은 직접 만들 필요가 없습니다. Apps Script가 `QNA` 시트와 `count` 시트를 자동으로 만들고 헤더를 추가합니다.
+3. 시트 탭 이름은 직접 만들 필요가 없습니다. Apps Script가 `QNA`, `count`, `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트를 자동으로 만들고 헤더를 추가합니다.
 
 자동 생성되는 `QNA` 시트 헤더:
 
@@ -18,6 +18,12 @@ id, createdAt, affiliation, grade, name, text, private, passwordHash, answer, an
 
 ```text
 date, today, total, updatedAt
+```
+
+자동 생성되는 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트 헤더:
+
+```text
+id, createdAt, name, score, level, survivalMs
 ```
 
 ## 2. Apps Script 붙여넣기
@@ -58,7 +64,7 @@ QNA_SPREADSHEET_ID = Google Sheets 주소의 /d/ 와 /edit 사이에 있는 ID
 
 ## 5. qna-config.js 확인
 
-`qna-config.js`의 URL이 배포된 웹앱 `/exec` URL과 같아야 합니다.
+`qna-config.js`의 URL이 배포된 웹앱 `/exec` URL과 같아야 합니다. 이 파일은 Q&A, 방문자 카운터, 산성비 랭킹이 같은 Google Sheets 웹앱을 바라보도록 공유됩니다.
 
 ```js
 const QNA_API_URL = "https://script.google.com/macros/s/배포ID/exec";
@@ -79,7 +85,8 @@ window.QNA_CONFIG = {
 ```text
 학생 질문 등록 → Apps Script → Google Sheets `QNA` 시트 저장
 메인 페이지 방문 → Apps Script → Google Sheets `count` 시트 저장
-모든 학생/선생님이 같은 질문 목록과 방문자 수 확인
+산성비 게임 종료 후 랭킹 등록 → Apps Script → Google Sheets `사회 산성비 랭킹` 또는 `역사 산성비 랭킹` 시트 저장
+모든 학생/선생님이 같은 질문 목록, 방문자 수, 산성비 랭킹 확인
 관리자 답변 등록 → 학생이 답변 확인
 ```
 
@@ -87,6 +94,7 @@ window.QNA_CONFIG = {
 
 - 정적 HTML에서도 동작하도록 `script.js`는 Apps Script를 JSONP 방식으로 호출합니다.
 - 방문자 카운터는 화면 표시를 빠르게 하기 위해 마지막으로 받은 숫자만 브라우저에 임시 캐시하고, 기준 데이터는 Google Sheets `count` 시트에 저장합니다.
+- 산성비 랭킹은 Google Sheets의 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트에 각각 저장되며 홈페이지에는 상위 10개 기록이 표시됩니다.
 - 같은 브라우저 탭에서 새로고침할 때 중복 카운트되지 않도록 `sessionStorage`에 오늘 카운트 여부만 임시 표시합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.
 - 관리자 비밀번호는 홈페이지 JS에 넣지 않고 Apps Script 스크립트 속성 `QNA_ADMIN_PASSWORD`에서 검증합니다.

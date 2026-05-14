@@ -1,5 +1,9 @@
 const SHEET_NAME = 'QNA';
 const COUNT_SHEET_NAME = 'count';
+const ACID_RANKING_SHEET_NAMES = {
+  social: '사회 산성비 랭킹',
+  history: '역사 산성비 랭킹'
+};
 const HEADERS = [
   'id',
   'createdAt',
@@ -19,6 +23,15 @@ const COUNT_HEADERS = [
   'total',
   'updatedAt'
 ];
+const ACID_RANKING_HEADERS = [
+  'id',
+  'createdAt',
+  'name',
+  'score',
+  'level',
+  'survivalMs'
+];
+const ACID_RANKING_LIMIT = 10;
 const COUNT_CACHE_KEY = 'visitorCountSummary';
 const COUNT_CACHE_SECONDS = 300;
 
@@ -43,6 +56,8 @@ function handleRequest_(e) {
     else if (action === 'delete') result = deleteQuestion_(params);
     else if (action === 'visit') result = recordVisit_(params);
     else if (action === 'count') result = getVisitorCount_(params);
+    else if (action === 'acidRankings') result = listAcidRankings_();
+    else if (action === 'acidRankingCreate') result = createAcidRanking_(params);
     else if (action === 'ping') result = { message: 'QNA Apps Script is ready.' };
     else throw new Error('알 수 없는 요청입니다.');
 
@@ -222,23 +237,62 @@ function recordVisit_(params) {
   }
 }
 
-function getSheet_() {
-  const props = PropertiesService.getScriptProperties();
-  const spreadsheetId = props.getProperty('QNA_SPREADSHEET_ID');
-  const spreadsheet = spreadsheetId
-    ? SpreadsheetApp.openById(spreadsheetId)
-    : SpreadsheetApp.getActiveSpreadsheet();
+function listAcidRankings_() {
+  return { rankings: getAcidRankingGroups_() };
+}
 
-  if (!spreadsheet) {
-    throw new Error('스프레드시트를 찾을 수 없습니다. QNA_SPREADSHEET_ID 스크립트 속성을 설정하세요.');
+function createAcidRanking_(params) {
+  const group = normalizeAcidGroup_(params.group);
+  const now = new Date().toISOString();
+  const entry = {
+    id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    createdAt: now,
+    name: sanitizePlayerName_(params.name),
+    score: normalizeRankingNumber_(params.score, 0),
+    level: normalizeRankingNumber_(params.level, 1),
+    survivalMs: normalizeRankingNumber_(params.survivalMs, 0)
+  };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getAcidRankingSheet_(group);
+    sheet.appendRow(ACID_RANKING_HEADERS.map((header) => entry[header] ?? ''));
+    const groupEntries = listAcidRankingEntries_(group);
+    const rankIndex = groupEntries.findIndex((item) => item.id === entry.id);
+    return {
+      entry: publicAcidRankingEntry_(entry),
+      rank: rankIndex >= 0 && rankIndex < ACID_RANKING_LIMIT ? rankIndex + 1 : null,
+      rankings: getAcidRankingGroups_()
+    };
+  } finally {
+    lock.releaseLock();
   }
+}
 
+function getSheet_() {
+  const spreadsheet = getSpreadsheet_();
   const sheet = spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.insertSheet(SHEET_NAME);
   ensureHeaders_(sheet);
   return sheet;
 }
 
 function getCountSheet_() {
+  const spreadsheet = getSpreadsheet_();
+  const sheet = spreadsheet.getSheetByName(COUNT_SHEET_NAME) || spreadsheet.insertSheet(COUNT_SHEET_NAME);
+  ensureHeaders_(sheet, COUNT_HEADERS);
+  return sheet;
+}
+
+function getAcidRankingSheet_(group) {
+  const spreadsheet = getSpreadsheet_();
+  const sheetName = ACID_RANKING_SHEET_NAMES[group];
+  const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+  ensureHeaders_(sheet, ACID_RANKING_HEADERS);
+  return sheet;
+}
+
+function getSpreadsheet_() {
   const props = PropertiesService.getScriptProperties();
   const spreadsheetId = props.getProperty('QNA_SPREADSHEET_ID');
   const spreadsheet = spreadsheetId
@@ -249,9 +303,7 @@ function getCountSheet_() {
     throw new Error('스프레드시트를 찾을 수 없습니다. QNA_SPREADSHEET_ID 스크립트 속성을 설정하세요.');
   }
 
-  const sheet = spreadsheet.getSheetByName(COUNT_SHEET_NAME) || spreadsheet.insertSheet(COUNT_SHEET_NAME);
-  ensureHeaders_(sheet, COUNT_HEADERS);
-  return sheet;
+  return spreadsheet;
 }
 
 function ensureHeaders_(sheet, headers = HEADERS) {
@@ -340,6 +392,82 @@ function getCachedCount_(dateKey) {
   } catch (error) {
     return null;
   }
+}
+
+function getAcidRankingGroups_() {
+  return {
+    social: listAcidRankingEntries_('social'),
+    history: listAcidRankingEntries_('history')
+  };
+}
+
+function listAcidRankingEntries_(group) {
+  const sheet = getAcidRankingSheet_(group);
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+
+  const map = getHeaderMap_(sheet);
+  return sortAcidRankingEntries_(values
+    .slice(1)
+    .map((row) => rowToAcidRankingEntry_(row, map))
+    .filter((entry) => entry.id))
+    .slice(0, ACID_RANKING_LIMIT);
+}
+
+function rowToAcidRankingEntry_(row, map) {
+  return publicAcidRankingEntry_({
+    id: String(row[map.id] || ''),
+    createdAt: row[map.createdAt] || '',
+    name: row[map.name] || '익명',
+    score: row[map.score],
+    level: row[map.level],
+    survivalMs: row[map.survivalMs]
+  });
+}
+
+function publicAcidRankingEntry_(entry) {
+  return {
+    id: String(entry.id || ''),
+    createdAt: entry.createdAt || '',
+    name: sanitizePlayerName_(entry.name),
+    score: normalizeRankingNumber_(entry.score, 0),
+    level: normalizeRankingNumber_(entry.level, 1),
+    survivalMs: normalizeRankingNumber_(entry.survivalMs, 0)
+  };
+}
+
+function sortAcidRankingEntries_(entries) {
+  return [...entries].sort((a, b) => (
+    Number(b.score || 0) - Number(a.score || 0)
+    || Number(b.level || 0) - Number(a.level || 0)
+    || Number(b.survivalMs || 0) - Number(a.survivalMs || 0)
+    || getRankingCreatedAtValue_(a.createdAt) - getRankingCreatedAtValue_(b.createdAt)
+  ));
+}
+
+function getRankingCreatedAtValue_(value) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeAcidGroup_(value) {
+  const group = String(value || '').trim();
+  if (group === 'social' || group === 'history') return group;
+  throw new Error('산성비 랭킹 항목이 올바르지 않습니다.');
+}
+
+function sanitizePlayerName_(value) {
+  const name = String(value || '').trim();
+  return (name || '익명').slice(0, 12);
+}
+
+function normalizeRankingNumber_(value, fallback) {
+  if (value == null || String(value).trim() === '') return fallback;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(fallback, Math.round(number));
 }
 
 function cacheCount_(payload) {

@@ -42,10 +42,10 @@ function shuffle(items) {
 const visitorCounter = document.querySelector("#visitorCounter");
 const visitorSessionKey = "socialHistoryVisitorCountedDate";
 const visitorCacheKey = "socialHistoryVisitorCountCache";
-const visitorApiUrl = window.QNA_CONFIG?.apiUrl
+const sheetApiUrl = window.QNA_CONFIG?.apiUrl
   || window.QNA_API_URL
   || "";
-const visitorRequestTimeout = Number(window.QNA_CONFIG?.timeoutMs) || 15000;
+const sheetRequestTimeout = Number(window.QNA_CONFIG?.timeoutMs) || 15000;
 const visitorCountBaseSize = 1.16;
 const visitorCountMinSize = 0.62;
 
@@ -56,8 +56,55 @@ function getVisitorDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function isVisitorApiConfigured() {
-  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(visitorApiUrl);
+function isSheetsApiConfigured() {
+  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(sheetApiUrl);
+}
+
+function sheetsApiRequest(action, params = {}, options = {}) {
+  return new Promise((resolve, reject) => {
+    if (!isSheetsApiConfigured()) {
+      reject(new Error(options.notConfiguredMessage || "Apps Script 웹앱 URL을 설정하세요."));
+      return;
+    }
+
+    const callbackPrefix = options.callbackPrefix || "__sheetsCallback";
+    const callbackName = `${callbackPrefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error(options.timeoutMessage || "Google Sheets 응답 시간이 초과되었습니다."));
+    }, sheetRequestTimeout);
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = (payload) => {
+      cleanup();
+      if (payload?.ok) {
+        resolve(payload);
+      } else {
+        reject(new Error(payload?.message || options.defaultErrorMessage || "Google Sheets 요청을 처리하지 못했습니다."));
+      }
+    };
+
+    const url = new URL(sheetApiUrl);
+    url.searchParams.set("callback", callbackName);
+    url.searchParams.set("action", action);
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value == null ? "" : String(value));
+    });
+
+    script.async = true;
+    script.onerror = () => {
+      cleanup();
+      reject(new Error(options.connectionErrorMessage || "Google Sheets에 연결하지 못했습니다."));
+    };
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
 }
 
 function getCachedVisitorCounter(todayKey) {
@@ -89,48 +136,12 @@ function saveCachedVisitorCounter(payload, fallbackDate) {
 }
 
 function visitorApiRequest(action, params = {}) {
-  return new Promise((resolve, reject) => {
-    if (!isVisitorApiConfigured()) {
-      reject(new Error("Apps Script 웹앱 URL을 설정하세요."));
-      return;
-    }
-
-    const callbackName = `__visitorCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    const timeoutId = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("방문자 카운터 응답 시간이 초과되었습니다."));
-    }, visitorRequestTimeout);
-
-    function cleanup() {
-      window.clearTimeout(timeoutId);
-      delete window[callbackName];
-      script.remove();
-    }
-
-    window[callbackName] = (payload) => {
-      cleanup();
-      if (payload?.ok) {
-        resolve(payload);
-      } else {
-        reject(new Error(payload?.message || "방문자 카운터 요청을 처리하지 못했습니다."));
-      }
-    };
-
-    const url = new URL(visitorApiUrl);
-    url.searchParams.set("callback", callbackName);
-    url.searchParams.set("action", action);
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value == null ? "" : String(value));
-    });
-
-    script.async = true;
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("방문자 카운터에 연결하지 못했습니다."));
-    };
-    script.src = url.toString();
-    document.head.appendChild(script);
+  return sheetsApiRequest(action, params, {
+    callbackPrefix: "__visitorCallback",
+    notConfiguredMessage: "Apps Script 웹앱 URL을 설정하세요.",
+    timeoutMessage: "방문자 카운터 응답 시간이 초과되었습니다.",
+    defaultErrorMessage: "방문자 카운터 요청을 처리하지 못했습니다.",
+    connectionErrorMessage: "방문자 카운터에 연결하지 못했습니다."
   });
 }
 
@@ -807,12 +818,16 @@ function initAcidRainGame(root) {
   const acidModeStatus = root.querySelector("[data-acid-mode-status]");
   const acidModeButtons = root.querySelectorAll("[data-acid-mode]");
   const rankingStorageKey = "socialHistoryAcidRainRankings";
+  const emptyRankings = { social: [], history: [] };
   const hashTarget = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
   let currentTermGroup = hashTarget.toLowerCase().includes("history")
     ? "history"
     : root.dataset.acidTerms || "social";
   let termBank = getAcidTermBank(currentTermGroup);
   let acidState = createAcidState();
+  let acidRankingsState = getStoredRankings();
+  let acidRankingStatus = "";
+  let acidRankingLoadId = 0;
   const touchStartQuery = window.matchMedia?.("(hover: none), (pointer: coarse)");
   const mobileLayoutQuery = window.matchMedia?.("(max-width: 820px)");
 
@@ -885,13 +900,17 @@ function initAcidRainGame(root) {
   function getStoredRankings() {
     try {
       const saved = JSON.parse(localStorage.getItem(rankingStorageKey) || "{}");
-      return {
-        social: Array.isArray(saved.social) ? saved.social : [],
-        history: Array.isArray(saved.history) ? saved.history : []
-      };
+      return normalizeAcidRankings(saved);
     } catch (error) {
-      return { social: [], history: [] };
+      return { ...emptyRankings };
     }
+  }
+
+  function getAcidCreatedAtValue(value) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   function sortAcidRankings(entries) {
@@ -899,15 +918,43 @@ function initAcidRainGame(root) {
       Number(b.score || 0) - Number(a.score || 0)
       || Number(b.level || 0) - Number(a.level || 0)
       || Number(b.survivalMs || 0) - Number(a.survivalMs || 0)
-      || Number(a.createdAt || 0) - Number(b.createdAt || 0)
+      || getAcidCreatedAtValue(a.createdAt) - getAcidCreatedAtValue(b.createdAt)
     ));
   }
 
+  function normalizeAcidRankingEntry(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    return {
+      id: String(entry.id || ""),
+      createdAt: entry.createdAt || "",
+      name: getPlayerName(entry.name).slice(0, 12),
+      score: Math.max(0, Math.round(Number(entry.score) || 0)),
+      level: Math.max(1, Math.round(Number(entry.level) || 1)),
+      survivalMs: Math.max(0, Math.round(Number(entry.survivalMs) || 0))
+    };
+  }
+
+  function normalizeAcidRankingList(entries) {
+    if (!Array.isArray(entries)) return [];
+    return sortAcidRankings(entries
+      .map(normalizeAcidRankingEntry)
+      .filter(Boolean))
+      .slice(0, 10);
+  }
+
+  function normalizeAcidRankings(rankings) {
+    return {
+      social: normalizeAcidRankingList(rankings?.social),
+      history: normalizeAcidRankingList(rankings?.history)
+    };
+  }
+
   function saveStoredRankings(rankings) {
-    localStorage.setItem(rankingStorageKey, JSON.stringify({
-      social: sortAcidRankings(rankings.social).slice(0, 10),
-      history: sortAcidRankings(rankings.history).slice(0, 10)
-    }));
+    try {
+      localStorage.setItem(rankingStorageKey, JSON.stringify(normalizeAcidRankings(rankings)));
+    } catch {
+      // 기준 랭킹 저장은 Google Sheets에서 처리합니다.
+    }
   }
 
   function getPlayerName(value) {
@@ -948,32 +995,76 @@ function initAcidRainGame(root) {
     `;
   }
 
-  function renderAcidRankings() {
+  function renderAcidRankings(statusMessage = acidRankingStatus) {
     if (!acidRankings) return;
-    const rankings = getStoredRankings();
+    const rankings = normalizeAcidRankings(acidRankingsState);
+    const statusMarkup = statusMessage
+      ? `<p class="acid-ranking-status">${escapeHTML(statusMessage)}</p>`
+      : "";
     acidRankings.innerHTML = `
       ${renderRankingTable("social", rankings.social)}
       ${renderRankingTable("history", rankings.history)}
+      ${statusMarkup}
     `;
   }
 
-  function saveAcidRanking(name) {
+  async function loadAcidRankings() {
+    const requestId = acidRankingLoadId + 1;
+    acidRankingLoadId = requestId;
+
+    if (!isSheetsApiConfigured()) {
+      acidRankingStatus = "Google Sheets 웹앱 URL을 설정하면 공유 랭킹이 표시됩니다.";
+      renderAcidRankings();
+      return;
+    }
+
+    acidRankingStatus = "Google Sheets 랭킹을 불러오는 중입니다.";
+    renderAcidRankings();
+
+    try {
+      const payload = await sheetsApiRequest("acidRankings", {}, {
+        callbackPrefix: "__acidRankingCallback",
+        timeoutMessage: "산성비 랭킹 응답 시간이 초과되었습니다.",
+        defaultErrorMessage: "산성비 랭킹 요청을 처리하지 못했습니다.",
+        connectionErrorMessage: "산성비 랭킹에 연결하지 못했습니다."
+      });
+      if (requestId !== acidRankingLoadId) return;
+      acidRankingsState = normalizeAcidRankings(payload.rankings);
+      saveStoredRankings(acidRankingsState);
+      acidRankingStatus = "";
+    } catch (error) {
+      if (requestId !== acidRankingLoadId) return;
+      console.warn(error);
+      acidRankingStatus = "Google Sheets 랭킹을 불러오지 못해 마지막 기록을 표시합니다.";
+    }
+
+    renderAcidRankings();
+  }
+
+  async function saveAcidRanking(name) {
     if (acidState.rankingSaved) return null;
-    acidState.rankingSaved = true;
-    const rankings = getStoredRankings();
-    const entry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    if (!isSheetsApiConfigured()) {
+      throw new Error("Google Sheets 웹앱 URL을 설정하세요.");
+    }
+
+    const payload = await sheetsApiRequest("acidRankingCreate", {
+      group: currentTermGroup,
       name: getPlayerName(name).slice(0, 12),
       score: acidState.score,
       level: acidState.level,
-      survivalMs: acidState.elapsedMs,
-      createdAt: Date.now()
-    };
-    rankings[currentTermGroup].push(entry);
-    rankings[currentTermGroup] = sortAcidRankings(rankings[currentTermGroup]).slice(0, 10);
-    saveStoredRankings(rankings);
-    const rankIndex = rankings[currentTermGroup].findIndex((item) => item.id === entry.id);
-    return rankIndex >= 0 ? rankIndex + 1 : null;
+      survivalMs: Math.round(acidState.elapsedMs)
+    }, {
+      callbackPrefix: "__acidRankingCallback",
+      timeoutMessage: "산성비 랭킹 등록 응답 시간이 초과되었습니다.",
+      defaultErrorMessage: "산성비 랭킹을 등록하지 못했습니다.",
+      connectionErrorMessage: "산성비 랭킹에 연결하지 못했습니다."
+    });
+
+    acidState.rankingSaved = true;
+    acidRankingsState = normalizeAcidRankings(payload.rankings);
+    saveStoredRankings(acidRankingsState);
+    acidRankingStatus = "";
+    return Number(payload.rank) || null;
   }
 
   function changeAcidMode(termGroup) {
@@ -1175,17 +1266,25 @@ function initAcidRainGame(root) {
     acidAnswer.value = "";
   }
 
-  function handleAcidRankSubmit(event) {
+  async function handleAcidRankSubmit(event) {
     event.preventDefault();
-    const savedRank = saveAcidRanking(acidRankName?.value);
-    renderAcidRankings();
-    const rankingMessage = savedRank
-      ? `${getAcidRankingTitle(currentTermGroup)} ${savedRank}위에 등록되었습니다.`
-      : `${getAcidRankingTitle(currentTermGroup)} 상위 10위에는 들지 못했습니다.`;
-
     if (acidRankName) acidRankName.disabled = true;
     if (acidRankSubmit) acidRankSubmit.disabled = true;
-    if (acidRankMessage) acidRankMessage.textContent = rankingMessage;
+    if (acidRankMessage) acidRankMessage.textContent = "Google Sheets에 랭킹을 등록하는 중입니다.";
+
+    try {
+      const savedRank = await saveAcidRanking(acidRankName?.value);
+      renderAcidRankings();
+      const rankingMessage = savedRank
+        ? `${getAcidRankingTitle(currentTermGroup)} ${savedRank}위에 등록되었습니다.`
+        : "Google Sheets에 등록되었습니다. 현재 상위 10위에는 표시되지 않습니다.";
+      if (acidRankMessage) acidRankMessage.textContent = rankingMessage;
+    } catch (error) {
+      console.warn(error);
+      if (acidRankName) acidRankName.disabled = false;
+      if (acidRankSubmit) acidRankSubmit.disabled = false;
+      if (acidRankMessage) acidRankMessage.textContent = "랭킹 등록에 실패했습니다. 잠시 후 다시 시도하세요.";
+    }
   }
 
   function handleAcidKeydown(event) {
@@ -1201,6 +1300,7 @@ function initAcidRainGame(root) {
     syncAcidMobileLayout();
     resetAcidGame();
     renderAcidRankings();
+    loadAcidRankings();
     root.addEventListener("click", (event) => {
       const modeButton = event.target.closest("[data-acid-mode]");
       if (!modeButton || !root.contains(modeButton)) return;

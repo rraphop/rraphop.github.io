@@ -868,6 +868,13 @@ select {
   padding: 10px;
 }
 
+.acid-ranking-status {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .qna-form {
   display: grid;
   gap: 10px;
