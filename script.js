@@ -41,7 +41,7 @@ function shuffle(items) {
 
 const visitorCounter = document.querySelector("#visitorCounter");
 const visitorSessionKey = "socialHistoryVisitorCountedDate";
-const visitorCacheKey = "socialHistoryVisitorCountCacheV2";
+const visitorCacheKey = "socialHistoryVisitorCountCacheV3";
 const sheetApiUrl = window.QNA_CONFIG?.apiUrl
   || window.QNA_API_URL
   || "";
@@ -50,9 +50,15 @@ const visitorCountBaseSize = 1.16;
 const visitorCountMinSize = 0.62;
 
 function getVisitorDateKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value || String(date.getFullYear());
+  const month = parts.find((part) => part.type === "month")?.value || String(date.getMonth() + 1).padStart(2, "0");
+  const day = parts.find((part) => part.type === "day")?.value || String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -877,6 +883,27 @@ function initAcidRainGame(root) {
   let acidRankingLoadId = 0;
   const touchStartQuery = window.matchMedia?.("(hover: none), (pointer: coarse)");
   const mobileLayoutQuery = window.matchMedia?.("(max-width: 820px)");
+  const mobileSpeedBreakpoint = 768;
+  const mobileSpeedRatio = 0.7;
+  let mobileSpeedMultiplier = getAcidSpeedMultiplier();
+
+  function isAcidMobileSpeedViewport() {
+    return window.innerWidth <= mobileSpeedBreakpoint;
+  }
+
+  function getAcidSpeedMultiplier() {
+    return isAcidMobileSpeedViewport() ? mobileSpeedRatio : 1;
+  }
+
+  function syncAcidSpeedMultiplier() {
+    const previousMultiplier = mobileSpeedMultiplier;
+    mobileSpeedMultiplier = getAcidSpeedMultiplier();
+    if (!acidState.running || previousMultiplier === mobileSpeedMultiplier) return;
+
+    const now = performance.now();
+    const remainingDropDelay = Math.max(0, acidState.nextDropAt - now);
+    acidState.nextDropAt = now + (remainingDropDelay * previousMultiplier) / mobileSpeedMultiplier;
+  }
 
   function isAcidMobileLayout() {
     const userAgent = navigator.userAgent || "";
@@ -907,6 +934,7 @@ function initAcidRainGame(root) {
   }
 
   function syncAcidMobileLayout() {
+    syncAcidSpeedMultiplier();
     root.classList.toggle("acid-mobile-layout", isAcidMobileLayout());
     refreshReadyMessageForInputMode();
     updateAcidViewportMetrics();
@@ -1178,6 +1206,7 @@ function initAcidRainGame(root) {
     const term = termBank[Math.floor(Math.random() * termBank.length)];
     const element = document.createElement("button");
     const left = 4 + Math.random() * 76;
+    const desktopSpeed = 32 + acidState.level * 10 + Math.random() * 18;
     element.type = "button";
     element.className = "acid-drop";
     element.textContent = term;
@@ -1188,8 +1217,13 @@ function initAcidRainGame(root) {
       term,
       element,
       y: 0,
-      speed: 32 + acidState.level * 10 + Math.random() * 18
+      speed: desktopSpeed
     });
+  }
+
+  function getAcidDropInterval() {
+    const desktopInterval = Math.max(750, 1600 - acidState.level * 120);
+    return desktopInterval / mobileSpeedMultiplier;
   }
 
   function endAcidGame() {
@@ -1245,12 +1279,12 @@ function initAcidRainGame(root) {
 
     if (timestamp >= acidState.nextDropAt) {
       createAcidDrop();
-      acidState.nextDropAt = timestamp + Math.max(750, 1600 - acidState.level * 120);
+      acidState.nextDropAt = timestamp + getAcidDropInterval();
     }
 
     const arenaHeight = acidArena.clientHeight;
     acidState.terms = acidState.terms.filter((item) => {
-      item.y += item.speed * delta;
+      item.y += item.speed * mobileSpeedMultiplier * delta;
       item.element.style.top = `${item.y}px`;
       if (item.y > arenaHeight - 42) {
         item.element.remove();
@@ -1275,6 +1309,7 @@ function initAcidRainGame(root) {
       resetAcidGame(`${getAcidTermLabel(currentTermGroup)} 은행을 불러오지 못했습니다.`);
       return;
     }
+    syncAcidSpeedMultiplier();
     resetAcidGame("");
     acidState.running = true;
     root.classList.add("acid-game-running");

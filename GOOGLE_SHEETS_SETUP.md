@@ -6,7 +6,7 @@
 
 1. Google Drive에서 새 스프레드시트를 만듭니다.
 2. 문서 이름은 예를 들어 `사회역사 QNA 게시판`으로 정합니다.
-3. 시트 탭 이름은 직접 만들 필요가 없습니다. Apps Script가 `QNA`, `count`, `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트를 자동으로 만들고 헤더를 추가합니다.
+3. 시트 탭 이름은 직접 만들 필요가 없습니다. Apps Script가 `QNA`, `Counter`, `Daily`, `Monthly`, `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트를 자동으로 만들고 헤더를 추가합니다.
 
 자동 생성되는 `QNA` 시트 헤더:
 
@@ -14,15 +14,28 @@
 id, createdAt, affiliation, grade, name, text, private, passwordHash, answer, answeredAt, status
 ```
 
-자동 생성되는 `count` 시트 헤더:
+자동 생성되는 `Counter` 시트 헤더:
 
 ```text
-date, today, total, startTotal, updatedAt
+key, value
 ```
 
-`count` 시트는 방문자 1명당 1행을 만들지 않고 날짜별 1행만 유지합니다. 같은 날짜의 방문은 해당 날짜 행의 `today` 값을 갱신하고, `total`은 계속 누적됩니다.
+`Counter` 시트에는 `total`, `todayDate`, `todayCount` 세 값을 저장합니다.
 방문자 날짜 기준은 Apps Script의 `Asia/Seoul` 기준 하루(00:00:00~23:59:59)입니다.
-`startTotal`은 해당 날짜가 시작되기 직전 총 방문자 수이며, 오늘 방문자 수는 `total - startTotal` 기준으로도 복구됩니다.
+
+자동 생성되는 `Daily` 시트 헤더:
+
+```text
+date, count
+```
+
+자동 생성되는 `Monthly` 시트 헤더:
+
+```text
+month, count
+```
+
+`Daily` 시트는 방문자 1명당 1행을 만들지 않고 날짜별 1행만 유지합니다. 오래된 일별 기록은 `cleanupOldDailyRecords` 함수로 `Monthly` 시트에 월별 합산됩니다.
 
 자동 생성되는 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트 헤더:
 
@@ -68,11 +81,13 @@ QNA_SPREADSHEET_ID = Google Sheets 주소의 /d/ 와 /edit 사이에 있는 ID
 
 ## 5. 시트 초기화
 
-Apps Script 편집기 상단의 함수 선택 메뉴에서 `setupSheets`를 선택하고 실행합니다. 권한 승인 후 아래 네 시트가 만들어졌는지 확인합니다.
+Apps Script 편집기 상단의 함수 선택 메뉴에서 `setupSheets`를 선택하고 실행합니다. 권한 승인 후 아래 시트가 만들어졌는지 확인합니다.
 
 ```text
 QNA
-count
+Counter
+Daily
+Monthly
 사회 산성비 랭킹
 역사 산성비 랭킹
 ```
@@ -105,7 +120,7 @@ window.QNA_CONFIG = {
 
 ```text
 학생 질문 등록 → Apps Script → Google Sheets `QNA` 시트 저장
-메인 페이지 방문 → Apps Script → Google Sheets `count` 시트 저장
+메인 페이지 방문 → Apps Script → Google Sheets `Counter` 시트 갱신
 산성비 게임 종료 후 랭킹 등록 → Apps Script → Google Sheets `사회 산성비 랭킹` 또는 `역사 산성비 랭킹` 시트 저장
 모든 학생/선생님이 같은 질문 목록, 방문자 수, 산성비 랭킹 확인
 관리자 답변 등록 → 학생이 답변 확인
@@ -114,7 +129,8 @@ window.QNA_CONFIG = {
 ## 참고 사항
 
 - 정적 HTML에서도 동작하도록 `script.js`는 Apps Script를 JSONP 방식으로 호출합니다.
-- 방문자 카운터는 화면 표시를 빠르게 하기 위해 마지막으로 받은 숫자만 브라우저에 임시 캐시하고, 기준 데이터는 Google Sheets `count` 시트의 날짜별 행에 저장합니다.
+- 방문자 카운터는 화면 표시를 빠르게 하기 위해 마지막으로 받은 숫자만 브라우저에 임시 캐시하고, 기준 데이터는 Google Sheets `Counter`, `Daily`, `Monthly` 시트에 저장합니다.
+- 기존 `count` 시트가 있으면 `Counter`와 `Daily` 시트가 비어 있을 때 처음 한 번 읽어 현재 누적값과 날짜별 값을 이전합니다. 기존 `count` 시트는 더 이상 방문 기록에 사용하지 않습니다.
 - 산성비 랭킹은 Google Sheets의 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트에 각각 저장되며 홈페이지에는 상위 10개 기록이 표시됩니다.
 - 같은 브라우저 탭에서 새로고침할 때 중복 카운트되지 않도록 `sessionStorage`에 오늘 카운트 여부만 임시 표시합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.
