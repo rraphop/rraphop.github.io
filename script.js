@@ -177,13 +177,11 @@ function renderVisitorCounter(todayCount, totalCount) {
   requestAnimationFrame(fitVisitorCounts);
 }
 
-function renderCachedVisitorCounter(todayKey, shouldCountVisit) {
+function renderCachedVisitorCounter(todayKey) {
   const cached = getCachedVisitorCounter(todayKey);
   if (!cached) return false;
 
-  const optimisticToday = cached.today + (shouldCountVisit ? 1 : 0);
-  const optimisticTotal = cached.total + (shouldCountVisit ? 1 : 0);
-  renderVisitorCounter(optimisticToday, optimisticTotal);
+  renderVisitorCounter(cached.today, cached.total);
   return true;
 }
 
@@ -199,7 +197,7 @@ async function updateVisitorCounter() {
     shouldCountVisit = true;
   }
 
-  const renderedCache = renderCachedVisitorCounter(todayKey, shouldCountVisit);
+  const renderedCache = renderCachedVisitorCounter(todayKey);
 
   try {
     const payload = await visitorApiRequest(shouldCountVisit ? "visit" : "count", { date: todayKey });
@@ -867,13 +865,16 @@ function initAcidRainGame(root) {
     const viewportTop = window.visualViewport?.offsetTop || 0;
     const inputHeight = Math.ceil(acidForm?.offsetHeight || 68);
     const statusHeight = Math.ceil(acidStatus?.offsetHeight || 38);
+    const inputTop = Math.max(viewportTop + statusHeight, viewportTop + viewportHeight - inputHeight);
+    const arenaHeight = Math.max(80, inputTop - viewportTop - statusHeight);
 
     root.style.setProperty("--acid-visual-height", `${viewportHeight}px`);
     root.style.setProperty("--acid-visual-top", `${viewportTop}px`);
     root.style.setProperty("--acid-input-height", `${inputHeight}px`);
     root.style.setProperty("--acid-status-height", `${statusHeight}px`);
-    root.style.setProperty("--acid-mobile-arena-reduction", isAcidMobileLayout() ? `${inputHeight}px` : "0px");
-    // 낙하 영역 높이 = visualViewport - 상태바 - 입력칸 (순수 CSS calc로 처리)
+    root.style.setProperty("--acid-input-top", `${inputTop}px`);
+    root.style.setProperty("--acid-arena-height", `${arenaHeight}px`);
+    // 낙하 영역과 입력칸은 visualViewport 기준으로 키보드 위에 상대 배치
 
     if (!window.visualViewport) return;
     const viewportInset = Math.max(

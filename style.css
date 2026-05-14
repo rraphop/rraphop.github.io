@@ -1414,8 +1414,7 @@ tbody th {
   left: 0;
   right: 0;
   z-index: 46;
-  /* 입력칸을 아래로 내린 만큼 낙하 영역을 visualViewport 하단까지 확장 */
-  height: calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px));
+  height: var(--acid-arena-height, calc(var(--acid-visual-height, 100vh) - var(--acid-status-height, 38px) - var(--acid-input-height, 68px)));
   min-height: 80px;
   max-height: none;
   margin: 0;
@@ -1424,12 +1423,12 @@ tbody th {
 
 /*
   게임 실행 중: 입력칸
-  - visualViewport 하단에 맞춤
-  - 키보드/브라우저 보조 UI와 겹치더라도 입력칸 높이만큼 아래로 내림
+  - visualViewport 하단에서 입력칸 높이를 뺀 위치
+  - 키보드 위치가 달라도 보이는 영역 하단에 상대 배치
 */
 #acidRainGame.acid-mobile-layout.acid-game-running .acid-input-row {
   position: fixed;
-  top: calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh));
+  top: var(--acid-input-top, calc(var(--acid-visual-top, 0px) + var(--acid-visual-height, 100vh) - var(--acid-input-height, 68px)));
   left: 0;
   right: 0;
   bottom: auto;
