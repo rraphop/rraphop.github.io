@@ -1402,14 +1402,14 @@ function initAcidRainGame(root) {
     }
     if (acidRankName) acidRankName.disabled = true;
     if (acidRankSubmit) acidRankSubmit.disabled = true;
-    if (acidRankMessage) acidRankMessage.textContent = "Google Sheets에 랭킹을 등록하는 중입니다.";
+    if (acidRankMessage) acidRankMessage.textContent = "랭킹을 등록하는 중입니다.";
 
     try {
       const savedRank = await saveAcidRanking(acidRankName?.value);
       renderAcidRankings();
       const rankingMessage = savedRank
         ? `${getAcidRankingTitle(currentTermGroup)} ${savedRank}위에 등록되었습니다.`
-        : "Google Sheets에 등록되었습니다. 현재 상위 10위에는 표시되지 않습니다.";
+        : "랭킹에 등록되었습니다. 현재 상위 10위에는 표시되지 않습니다.";
       if (acidRankMessage) acidRankMessage.textContent = rankingMessage;
       showAcidPostRankActions();
     } catch (error) {
