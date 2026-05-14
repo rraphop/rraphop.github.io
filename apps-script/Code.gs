@@ -25,7 +25,7 @@ const COUNTER_TODAY_COUNT_CELL = 'J1';
 const COUNTER_TODAY_FORMULA = '=TODAY()';
 const COUNTER_TODAY_COUNT_FORMULA = '=IFERROR(SUM(FILTER(B:B, TEXT(A:A,"yyyy-mm-dd")=TEXT(I1,"yyyy-mm-dd"))),0)';
 const COUNTER_TOTAL_OFFSET_PROPERTY = 'VISITOR_COUNTER_TOTAL_OFFSET';
-const COUNTER_DEBUG_VERSION = 'counter-debug-2026-05-14-01';
+const COUNTER_DEBUG_VERSION = 'counter-debug-2026-05-14-03';
 const DAILY_HEADERS = ['date', 'count'];
 const MONTHLY_HEADERS = ['month', 'count'];
 const COUNT_TIMEZONE = 'Asia/Seoul';
@@ -399,6 +399,7 @@ function appendCounterVisit_(sheet, currentDate) {
   sheet.appendRow([recordDate, 1]);
   const rowIndex = sheet.getLastRow();
   sheet.getRange(rowIndex, 1).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(rowIndex, 2).setNumberFormat('0');
   SpreadsheetApp.flush();
 }
 
@@ -795,6 +796,10 @@ function ensureHeaders_(sheet, headers = HEADERS) {
 function ensureCounterHeaders_(sheet) {
   migrateLegacyCounterSheet_(sheet);
   sheet.getRange(1, 1, 1, COUNTER_HEADERS.length).setValues([COUNTER_HEADERS]);
+  sheet.getRange('A:A').setNumberFormat('yyyy-mm-dd');
+  sheet.getRange('B:B').setNumberFormat('0');
+  sheet.getRange(COUNTER_TODAY_CELL).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(COUNTER_TODAY_COUNT_CELL).setNumberFormat('0');
   sheet.getRange(COUNTER_TODAY_CELL).setFormula(COUNTER_TODAY_FORMULA);
   sheet.getRange(COUNTER_TODAY_COUNT_CELL).setFormula(COUNTER_TODAY_COUNT_FORMULA);
 }

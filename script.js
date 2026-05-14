@@ -112,31 +112,11 @@ function sheetsApiRequest(action, params = {}, options = {}) {
   });
 }
 
-function getCachedVisitorCounter(todayKey) {
+function clearCachedVisitorCounter() {
   try {
-    const saved = JSON.parse(localStorage.getItem(visitorCacheKey) || "{}");
-    const total = Number(saved.total);
-    if (!Number.isFinite(total)) return null;
-    return {
-      date: String(saved.date || ""),
-      today: String(saved.date || "") === todayKey ? Number(saved.today) || 0 : 0,
-      total
-    };
+    localStorage.removeItem(visitorCacheKey);
   } catch {
-    return null;
-  }
-}
-
-function saveCachedVisitorCounter(payload, fallbackDate) {
-  try {
-    localStorage.setItem(visitorCacheKey, JSON.stringify({
-      date: payload.date || fallbackDate,
-      today: Number(payload.today) || 0,
-      total: Number(payload.total) || 0,
-      updatedAt: new Date().toISOString()
-    }));
-  } catch {
-    // 실제 방문자 수 저장은 Google Sheets에서 처리합니다.
+    // 방문자 수의 기준 데이터는 Google Sheets에서만 읽습니다.
   }
 }
 
@@ -182,28 +162,19 @@ function renderVisitorCounter(todayCount, totalCount) {
   requestAnimationFrame(fitVisitorCounts);
 }
 
-function renderCachedVisitorCounter(todayKey) {
-  const cached = getCachedVisitorCounter(todayKey);
-  if (!cached) return false;
-
-  renderVisitorCounter(cached.today, cached.total);
-  return true;
-}
-
 async function updateVisitorCounter() {
   if (!visitorCounter) return;
 
   const todayKey = getVisitorDateKey();
-  const renderedCache = renderCachedVisitorCounter(todayKey);
+  clearCachedVisitorCounter();
 
   try {
     const data = await visitorApiRequest("visit", { date: todayKey });
     console.log("[visitor-counter] response", data);
-    saveCachedVisitorCounter(data, todayKey);
     renderVisitorCounter(data.today, data.total);
   } catch (error) {
     console.warn(error);
-    if (!renderedCache) requestAnimationFrame(fitVisitorCounts);
+    requestAnimationFrame(fitVisitorCounts);
   }
 }
 
