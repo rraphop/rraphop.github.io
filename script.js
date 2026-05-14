@@ -226,7 +226,7 @@ function createTermQuestion(unit, termEntry, termIndex, variantIndex) {
   const [term, clue, sentence, aliases = []] = termEntry;
   const answers = [term, ...aliases];
   const base = {
-    id: `${unit.id}-${termIndex}`,
+    id: `${unit.id}-${termIndex}-${variantIndex}`,
     term,
     answers,
     explanation: `${term}: ${clue}`
@@ -240,19 +240,27 @@ function createTermQuestion(unit, termEntry, termIndex, variantIndex) {
     {
       type: "괄호 넣기",
       question: sentence.replace("____", "(        )")
+    },
+    {
+      type: "단답형",
+      question: `다음 설명에 알맞은 용어를 쓰시오. ${clue}`
     }
   ];
 
   return {
     ...base,
-    ...templates[termIndex % templates.length]
+    ...templates[variantIndex % templates.length]
   };
 }
 
 function createQuestionPool(unit) {
-  return unit.terms.map((termEntry, termIndex) => (
-    createTermQuestion(unit, termEntry, termIndex)
-  ));
+  const maxQuestions = 30;
+  const variantCount = 3;
+  return Array.from({ length: variantCount }, (_, variantIndex) => (
+    shuffle(unit.terms.map((termEntry, termIndex) => (
+      createTermQuestion(unit, termEntry, termIndex, variantIndex)
+    )))
+  )).flat().slice(0, maxQuestions);
 }
 
 function getAvailableQuizSubjects() {
@@ -319,7 +327,7 @@ function clearCurrentQuiz(message) {
 
 function startQuiz() {
   const { subject, unit } = getSelectedUnit();
-  const pool = shuffle(createQuestionPool(unit));
+  const pool = createQuestionPool(unit);
 
   quizState = {
     subject,
