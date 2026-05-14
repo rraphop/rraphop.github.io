@@ -62,7 +62,24 @@ QNA_SPREADSHEET_ID = Google Sheets 주소의 /d/ 와 /edit 사이에 있는 ID
 4. 액세스 권한은 공개 게시판으로 쓰려면 `모든 사용자`로 설정합니다.
 5. 배포 후 나오는 `/exec` URL을 복사합니다.
 
-## 5. qna-config.js 확인
+## 5. 시트 초기화
+
+Apps Script 편집기 상단의 함수 선택 메뉴에서 `setupSheets`를 선택하고 실행합니다. 권한 승인 후 아래 네 시트가 만들어졌는지 확인합니다.
+
+```text
+QNA
+count
+사회 산성비 랭킹
+역사 산성비 랭킹
+```
+
+이미 웹앱을 배포했다면 아래 주소를 브라우저에서 한 번 열어도 같은 초기화가 실행됩니다.
+
+```text
+https://script.google.com/macros/s/배포ID/exec?action=setupSheets
+```
+
+## 6. qna-config.js 확인
 
 `qna-config.js`의 URL이 배포된 웹앱 `/exec` URL과 같아야 합니다. 이 파일은 Q&A, 방문자 카운터, 산성비 랭킹이 같은 Google Sheets 웹앱을 바라보도록 공유됩니다.
 
@@ -80,7 +97,7 @@ window.QNA_CONFIG = {
 };
 ```
 
-## 6. 동작 흐름
+## 7. 동작 흐름
 
 ```text
 학생 질문 등록 → Apps Script → Google Sheets `QNA` 시트 저장

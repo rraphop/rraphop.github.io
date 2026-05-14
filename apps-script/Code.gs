@@ -43,6 +43,10 @@ function doPost(e) {
   return handleRequest_(e);
 }
 
+function setupSheets() {
+  return setupSheets_();
+}
+
 function handleRequest_(e) {
   const params = getParams_(e);
   const action = params.action || 'list';
@@ -58,7 +62,8 @@ function handleRequest_(e) {
     else if (action === 'count') result = getVisitorCount_(params);
     else if (action === 'acidRankings') result = listAcidRankings_();
     else if (action === 'acidRankingCreate') result = createAcidRanking_(params);
-    else if (action === 'ping') result = { message: 'QNA Apps Script is ready.' };
+    else if (action === 'setupSheets') result = setupSheets_();
+    else if (action === 'ping') result = { message: 'QNA Apps Script is ready.', ...setupSheets_() };
     else throw new Error('알 수 없는 요청입니다.');
 
     return output_({ ok: true, ...result }, params.callback);
@@ -235,6 +240,21 @@ function recordVisit_(params) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function setupSheets_() {
+  const qnaSheet = getSheet_();
+  const countSheet = getCountSheet_();
+  const socialRankingSheet = getAcidRankingSheet_('social');
+  const historyRankingSheet = getAcidRankingSheet_('history');
+  return {
+    sheets: [
+      qnaSheet.getName(),
+      countSheet.getName(),
+      socialRankingSheet.getName(),
+      historyRankingSheet.getName()
+    ]
+  };
 }
 
 function listAcidRankings_() {
