@@ -17,11 +17,12 @@ id, createdAt, affiliation, grade, name, text, private, passwordHash, answer, an
 자동 생성되는 `count` 시트 헤더:
 
 ```text
-date, today, total, updatedAt
+date, today, total, startTotal, updatedAt
 ```
 
 `count` 시트는 방문자 1명당 1행을 만들지 않고 날짜별 1행만 유지합니다. 같은 날짜의 방문은 해당 날짜 행의 `today` 값을 갱신하고, `total`은 계속 누적됩니다.
 방문자 날짜 기준은 Apps Script의 `Asia/Seoul` 기준 하루(00:00:00~23:59:59)입니다.
+`startTotal`은 해당 날짜가 시작되기 직전 총 방문자 수이며, 오늘 방문자 수는 `total - startTotal` 기준으로도 복구됩니다.
 
 자동 생성되는 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트 헤더:
 

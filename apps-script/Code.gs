@@ -21,6 +21,7 @@ const COUNT_HEADERS = [
   'date',
   'today',
   'total',
+  'startTotal',
   'updatedAt'
 ];
 const COUNT_TIMEZONE = 'Asia/Seoul';
@@ -230,12 +231,14 @@ function getVisitorCount_(params) {
   const sheet = getCountSheet_();
   const map = getHeaderMap_(sheet);
   const summary = getCountSummary_(sheet, map, dateKey);
-  compactCountRowsForDate_(sheet, map, dateKey, summary.today);
-  return {
+  const result = {
     date: dateKey,
     today: summary.today,
-    total: summary.total
+    total: summary.total,
+    startTotal: summary.startTotal
   };
+  compactCountRowsForDate_(sheet, map, result);
+  return result;
 }
 
 function recordVisit_(params) {
@@ -247,9 +250,10 @@ function recordVisit_(params) {
     const map = getHeaderMap_(sheet);
     const summary = getCountSummary_(sheet, map, dateKey);
     const updatedAt = new Date().toISOString();
-    const today = summary.today + 1;
+    const startTotal = Number.isFinite(summary.startTotal) ? summary.startTotal : summary.total;
     const total = summary.total + 1;
-    const result = { date: dateKey, today, total, updatedAt };
+    const today = Math.max(summary.today + 1, total - startTotal);
+    const result = { date: dateKey, today, total, startTotal, updatedAt };
     upsertDailyCountRow_(sheet, map, result);
     return result;
   } finally {
@@ -383,23 +387,46 @@ function findQuestionRow_(sheet, id) {
 
 function getCountSummary_(sheet, map, dateKey) {
   const values = sheet.getDataRange().getValues();
-  let today = 0;
+  let todayFromRows = 0;
   let totalFromDailyRows = 0;
   let totalFromTotalColumn = 0;
+  let todayTotal = 0;
+  let previousTotal = 0;
+  let savedStartTotal = null;
 
-  if (values.length <= 1) return { today, total: 0 };
+  if (values.length <= 1) return { today: 0, total: 0, startTotal: 0 };
 
   values.slice(1).forEach((row) => {
     const rowDate = normalizeCountDateValue_(row[map.date]);
     const rowToday = Number(row[map.today]) || 0;
     const rowTotal = Number(row[map.total]) || 0;
+    const rowStartTotal = Number(row[map.startTotal]);
     totalFromDailyRows += rowToday;
     totalFromTotalColumn = Math.max(totalFromTotalColumn, rowTotal);
-    if (rowDate === dateKey) today += rowToday;
+    if (rowDate && rowDate < dateKey) previousTotal = Math.max(previousTotal, rowTotal);
+    if (rowDate === dateKey) {
+      todayFromRows += rowToday;
+      todayTotal = Math.max(todayTotal, rowTotal);
+      if (Number.isFinite(rowStartTotal)) {
+        savedStartTotal = savedStartTotal == null ? rowStartTotal : Math.min(savedStartTotal, rowStartTotal);
+      }
+    }
   });
 
   const total = Math.max(totalFromDailyRows, totalFromTotalColumn);
-  return { today, total };
+  const overrideStartTotal = getCountStartTotalOverride_(dateKey);
+  const startTotal = Number.isFinite(overrideStartTotal)
+    ? overrideStartTotal
+    : savedStartTotal != null
+      ? savedStartTotal
+      : previousTotal > 0
+        ? previousTotal
+        : todayTotal > 0
+          ? Math.max(0, todayTotal - todayFromRows)
+          : total;
+  const todayFromTotal = todayTotal > 0 ? Math.max(0, todayTotal - startTotal) : 0;
+  const today = Math.max(todayFromRows, todayFromTotal);
+  return { today, total, startTotal };
 }
 
 function upsertDailyCountRow_(sheet, map, payload) {
@@ -409,6 +436,7 @@ function upsertDailyCountRow_(sheet, map, payload) {
     date: payload.date || normalizeDateKey_(),
     today: Number(payload.today) || 0,
     total: Number(payload.total) || 0,
+    startTotal: Number(payload.startTotal) || 0,
     updatedAt: payload.updatedAt || new Date().toISOString()
   };
 
@@ -417,21 +445,23 @@ function upsertDailyCountRow_(sheet, map, payload) {
   sheet.getRange(rowIndex, map.date + 1).setNumberFormat('@').setValue(rowObject.date);
   setCell_(sheet, rowIndex, map, 'today', rowObject.today);
   setCell_(sheet, rowIndex, map, 'total', rowObject.total);
+  setCell_(sheet, rowIndex, map, 'startTotal', rowObject.startTotal);
   setCell_(sheet, rowIndex, map, 'updatedAt', rowObject.updatedAt);
 
   deleteCountRows_(sheet, matchingRows.slice(1));
 }
 
-function compactCountRowsForDate_(sheet, map, dateKey, today) {
-  const matchingRows = findCountRows_(sheet, map, dateKey);
+function compactCountRowsForDate_(sheet, map, payload) {
+  const matchingRows = findCountRows_(sheet, map, payload.date);
   if (matchingRows.length <= 1) return;
 
   const latestTotal = matchingRows.reduce((max, item) => Math.max(max, Number(item.row[map.total]) || 0), 0);
   const updatedAt = new Date().toISOString();
   upsertDailyCountRow_(sheet, map, {
-    date: dateKey,
-    today,
-    total: Math.max(getCountSummary_(sheet, map, dateKey).total, latestTotal),
+    date: payload.date,
+    today: payload.today,
+    total: Math.max(payload.total, latestTotal),
+    startTotal: payload.startTotal,
     updatedAt
   });
 }
@@ -574,6 +604,20 @@ function normalizeDateKey_(value) {
   const dateKey = normalizeCountDateValue_(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
   return getTodayDateKey_();
+}
+
+function getCountStartTotalOverride_(dateKey) {
+  const props = PropertiesService.getScriptProperties();
+  const dateProperty = `COUNT_START_TOTAL_${dateKey.replace(/-/g, '_')}`;
+  const candidates = [
+    props.getProperty(dateProperty),
+    props.getProperty('COUNT_TODAY_START_TOTAL')
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const value = Number(candidates[i]);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+  return null;
 }
 
 function normalizeCountDateValue_(value) {
