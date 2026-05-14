@@ -197,9 +197,10 @@ async function updateVisitorCounter() {
   const renderedCache = renderCachedVisitorCounter(todayKey);
 
   try {
-    const payload = await visitorApiRequest("visit", { date: todayKey });
-    saveCachedVisitorCounter(payload, todayKey);
-    renderVisitorCounter(payload.today, payload.total);
+    const data = await visitorApiRequest("visit", { date: todayKey });
+    console.log("[visitor-counter] response", data);
+    saveCachedVisitorCounter(data, todayKey);
+    renderVisitorCounter(data.today, data.total);
   } catch (error) {
     console.warn(error);
     if (!renderedCache) requestAnimationFrame(fitVisitorCounts);
