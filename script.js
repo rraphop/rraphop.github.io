@@ -572,6 +572,7 @@ const timelineEventBank = [
 const timelineRoundSize = 10;
 let timelineTarget = [];
 let timelineOrder = [];
+let timelineInitialized = false;
 const timelineList = document.querySelector("#timelineList");
 const timelineResultModal = document.querySelector("#timelineResultModal");
 const timelineResultTitle = document.querySelector("#timelineResultTitle");
@@ -592,6 +593,7 @@ function showGamePanel(gameName, updateHash = false) {
   gamePanels.forEach((panel) => {
     panel.classList.toggle("active", panel.dataset.gamePanel === gameName);
   });
+  if (gameName === "timeline") ensureTimelineRound();
   if (updateHash) {
     const panel = document.querySelector(`[data-game-panel="${gameName}"]`);
     if (panel?.id) history.replaceState(null, "", `#${panel.id}`);
@@ -662,10 +664,18 @@ function drawTimelineRound() {
   const events = getTimelineEvents();
   timelineTarget = shuffle(events).slice(0, timelineRoundSize);
   timelineOrder = shuffle(timelineTarget);
+  timelineInitialized = true;
   closeTimelineResult();
   renderTimelineStatus();
   renderTimelineBank();
   renderTimeline();
+}
+
+function ensureTimelineRound() {
+  if (!timelineList) return;
+  if (!timelineInitialized || timelineList.children.length === 0) {
+    drawTimelineRound();
+  }
 }
 
 function correctTimelineMarkup() {
@@ -705,7 +715,8 @@ function moveTimelineItem(index, direction) {
 }
 
 if (timelineList) {
-  drawTimelineRound();
+  ensureTimelineRound();
+  window.addEventListener("pageshow", ensureTimelineRound);
 
   timelineModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -735,16 +746,17 @@ if (timelineList) {
 
   timelineResultModal?.addEventListener("click", (event) => {
     if (event.target.closest("#restartTimelineResult")) return;
-    closeTimelineResult();
+    drawTimelineRound();
   });
 
-  restartTimelineResult?.addEventListener("click", () => {
+  restartTimelineResult?.addEventListener("click", (event) => {
+    event.stopPropagation();
     drawTimelineRound();
   });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !timelineResultModal?.hidden) {
-      closeTimelineResult();
+      drawTimelineRound();
     }
   });
 }
@@ -867,11 +879,15 @@ function initAcidRainGame(root) {
   const mobileLayoutQuery = window.matchMedia?.("(max-width: 820px)");
 
   function isAcidMobileLayout() {
+    const userAgent = navigator.userAgent || "";
+    const isPhoneOrAndroid = /Mobi|Android|iPhone|iPod/i.test(userAgent);
+    const isIPad = /iPad/i.test(userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1 && "ontouchend" in document);
     return Boolean(
       mobileLayoutQuery?.matches
       || window.innerWidth <= 820
-      || touchStartQuery?.matches
-      || navigator.maxTouchPoints > 0
+      || isPhoneOrAndroid
+      || isIPad
     );
   }
 
