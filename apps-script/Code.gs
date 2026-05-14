@@ -1,6 +1,5 @@
 const SHEET_NAME = 'QNA';
-const LEGACY_COUNT_SHEET_NAME = 'count';
-const COUNTER_SHEET_NAME = 'Counter';
+const COUNTER_SHEET_NAME = 'count';
 const DAILY_SHEET_NAME = 'Daily';
 const MONTHLY_SHEET_NAME = 'Monthly';
 const ACID_RANKING_SHEET_NAMES = {
@@ -46,6 +45,16 @@ function doPost(e) {
 
 function setupSheets() {
   return setupSheets_();
+}
+
+function initializeCounter() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    return initializeCounter_();
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function getParams_(e) {
@@ -238,19 +247,31 @@ function getVisitorCount_(params) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const total = getTotalCounter_();
-    const todayInfo = getTodayVisitCountInfo_(currentDate);
-    syncCounterToday_(currentDate, todayInfo.today);
-    logTodayVisitDebug_('count', currentDate, todayInfo, total);
-    return {
+    const sheet = getCounterSheet_();
+    const before = readCounterState_(sheet);
+    const todayDate = before.todayDate === currentDate ? before.todayDate : currentDate;
+    const todayCount = before.todayDate === currentDate ? before.todayCount : 0;
+    writeCounterState_(sheet, {
+      total: before.total,
+      todayDate,
+      todayCount
+    });
+
+    const response = {
       success: true,
-      date: currentDate,
-      today: todayInfo.today,
-      total
+      total: before.total,
+      today: todayCount,
+      date: currentDate
     };
+    logVisitorCounterDebug_('count', currentDate, before, response.total, response.today, response);
+    return response;
   } finally {
     lock.releaseLock();
   }
+}
+
+function recordVisit() {
+  return recordVisit_({});
 }
 
 function recordVisit_(params) {
@@ -258,277 +279,138 @@ function recordVisit_(params) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const total = incrementTotalCounter_(currentDate);
-    appendVisitLog_(currentDate, total);
-    const todayInfo = getTodayVisitCountInfo_(currentDate);
-    syncCounterToday_(currentDate, todayInfo.today);
-    logTodayVisitDebug_('visit', currentDate, todayInfo, total);
-    return {
+    const sheet = getCounterSheet_();
+    const before = readCounterState_(sheet);
+    let todayDate = before.todayDate;
+    let todayCount = before.todayCount;
+
+    if (todayDate === currentDate) {
+      todayCount += 1;
+    } else {
+      todayDate = currentDate;
+      todayCount = 1;
+    }
+
+    const total = before.total + 1;
+    writeCounterState_(sheet, {
+      total,
+      todayDate,
+      todayCount
+    });
+
+    const response = {
       success: true,
-      date: currentDate,
-      today: todayInfo.today,
-      total
+      total,
+      today: todayCount,
+      date: currentDate
     };
+    logVisitorCounterDebug_('visit', currentDate, before, response.total, response.today, response);
+    return response;
   } finally {
     lock.releaseLock();
   }
 }
 
 function getTotalCounter_() {
-  initializeCounterFromLegacy_();
   const sheet = getCounterSheet_();
-  return normalizeCounterNumber_(getCounterValue_(sheet, 'total'), 0);
-}
-
-function incrementTotalCounter_(currentDate) {
-  initializeCounterFromLegacy_();
-  const sheet = getCounterSheet_();
-  const total = normalizeCounterNumber_(getCounterValue_(sheet, 'total'), 0) + 1;
-  setCounterValue_(sheet, 'total', total);
-  setCounterValue_(sheet, 'todayDate', currentDate);
-  return total;
-}
-
-function syncCounterToday_(todayDate, today) {
-  const sheet = getCounterSheet_();
-  setCounterValue_(sheet, 'todayDate', todayDate);
-  setCounterValue_(sheet, 'todayCount', normalizeCounterNumber_(today, 0));
+  return readCounterState_(sheet).total;
 }
 
 function getTodayVisitCount(todayDate) {
-  return getTodayVisitCountInfo_(todayDate || getTodayDateKey_()).today;
-}
-
-function getTodayVisitCountInfo_(todayDate) {
-  const normalizedToday = normalizeDateKey_(todayDate, getTodayDateKey_());
-  const logInfos = getVisitLogSheetInfos_();
-  const sheetNames = [];
-  let readRowCount = 0;
-  let matchedRows = 0;
-  let today = 0;
-
-  logInfos.forEach((logInfo) => {
-    const sheet = logInfo.sheet;
-    const values = sheet.getDataRange().getValues();
-    const dataRows = values.length > 1 ? values.slice(1) : [];
-    sheetNames.push(sheet.getName());
-    readRowCount += dataRows.length;
-
-    dataRows.forEach((row) => {
-      const rowDate = normalizeDate(row[logInfo.dateColumnIndex]);
-      if (rowDate !== normalizedToday) return;
-
-      matchedRows += 1;
-      today += getVisitLogRowCount_(row, logInfo.countColumnIndex);
-    });
-  });
-
-  return {
-    today,
-    todayDate: normalizedToday,
-    readRowCount,
-    matchedRows,
-    sheetName: sheetNames.join(', ')
-  };
-}
-
-function appendVisitLog_(dateKey, total) {
-  const logInfo = getVisitLogSheetInfo_(dateKey);
-  const sheet = logInfo.sheet;
-  const columnCount = Math.max(sheet.getLastColumn(), logInfo.totalColumnIndex == null ? 0 : logInfo.totalColumnIndex + 1, 2);
-  const row = Array(columnCount).fill('');
-
-  row[logInfo.dateColumnIndex] = dateKey;
-  if (logInfo.countColumnIndex != null) row[logInfo.countColumnIndex] = 1;
-  if (logInfo.totalColumnIndex != null) row[logInfo.totalColumnIndex] = total;
-
-  sheet.appendRow(row);
-}
-
-function getVisitLogSheetInfos_() {
-  const spreadsheet = getSpreadsheet_();
-  const infos = [];
-
-  [LEGACY_COUNT_SHEET_NAME, DAILY_SHEET_NAME].forEach((sheetName) => {
-    const sheet = spreadsheet.getSheetByName(sheetName);
-    if (!sheet) return;
-
-    const info = getVisitLogSheetInfoFromSheet_(sheet);
-    if (info.hasDateColumn) infos.push(info);
-  });
-
-  if (infos.length > 0) return infos;
-
-  const dailySheet = getDailySheet_();
-  return [getVisitLogSheetInfoFromSheet_(dailySheet)];
-}
-
-function getVisitLogSheetInfo_(targetDate) {
-  const spreadsheet = getSpreadsheet_();
-  const candidates = [LEGACY_COUNT_SHEET_NAME, DAILY_SHEET_NAME];
-  let fallbackInfo = null;
-  let populatedInfo = null;
-
-  for (let index = 0; index < candidates.length; index += 1) {
-    const sheet = spreadsheet.getSheetByName(candidates[index]);
-    if (!sheet) continue;
-
-    const info = getVisitLogSheetInfoFromSheet_(sheet);
-    if (!fallbackInfo) fallbackInfo = info;
-    if (sheet.getLastRow() <= 1 || !info.hasDateColumn) continue;
-
-    if (!populatedInfo) populatedInfo = info;
-    if (targetDate && countMatchingVisitRows_(info, targetDate) > 0) return info;
-  }
-
-  if (populatedInfo) return populatedInfo;
-  if (fallbackInfo) return fallbackInfo;
-
-  const dailySheet = getDailySheet_();
-  return getVisitLogSheetInfoFromSheet_(dailySheet);
-}
-
-function getVisitLogSheetInfoFromSheet_(sheet) {
-  const headerMap = getVisitLogHeaderMap_(sheet);
-  const values = sheet.getDataRange().getValues();
-  const dateColumnIndex = headerMap.date != null
-    ? headerMap.date
-    : inferDateColumnIndex_(values);
-  const countColumnIndex = headerMap.count;
-
-  return {
-    sheet,
-    dateColumnIndex: dateColumnIndex == null ? 0 : dateColumnIndex,
-    countColumnIndex,
-    totalColumnIndex: headerMap.total,
-    hasDateColumn: dateColumnIndex != null
-  };
-}
-
-function getVisitLogHeaderMap_(sheet) {
-  if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
-    return { date: 0, count: 1, total: null };
-  }
-
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
-    .map((header) => String(header || '').trim().toLowerCase());
-
-  return {
-    date: findHeaderIndex_(headers, ['date', 'todaydate', '날짜', '일자']),
-    count: findHeaderIndex_(headers, ['count', 'today', 'todaycount', 'visits', '방문수', '방문자수']),
-    total: findHeaderIndex_(headers, ['total', 'totalcount', '누적', '전체'])
-  };
-}
-
-function findHeaderIndex_(headers, names) {
-  for (let index = 0; index < headers.length; index += 1) {
-    if (names.includes(headers[index])) return index;
-  }
-  return null;
-}
-
-function inferDateColumnIndex_(values) {
-  if (values.length <= 1) return null;
-  const maxColumn = values.reduce((max, row) => Math.max(max, row.length), 0);
-  for (let columnIndex = 0; columnIndex < maxColumn; columnIndex += 1) {
-    const found = values.slice(1, Math.min(values.length, 8)).some((row) => Boolean(normalizeDate(row[columnIndex])));
-    if (found) return columnIndex;
-  }
-  return null;
-}
-
-function countMatchingVisitRows_(logInfo, targetDate) {
-  const normalizedTargetDate = normalizeDateKey_(targetDate, getTodayDateKey_());
-  const values = logInfo.sheet.getDataRange().getValues();
-  return values.slice(1).reduce((count, row) => (
-    normalizeDate(row[logInfo.dateColumnIndex]) === normalizedTargetDate ? count + 1 : count
-  ), 0);
-}
-
-function getVisitLogRowCount_(row, countColumnIndex) {
-  if (countColumnIndex == null) return 1;
-
-  return normalizeCounterNumber_(row[countColumnIndex], 0);
-}
-
-function logTodayVisitDebug_(action, todayDate, todayInfo, total) {
-  const payload = {
-    action,
-    todayDate,
-    logSheetName: todayInfo.sheetName,
-    readRowCount: todayInfo.readRowCount,
-    matchedRows: todayInfo.matchedRows,
-    summedToday: todayInfo.today,
-    total,
-    today: todayInfo.today
-  };
-  Logger.log(`VisitorCounter ${JSON.stringify(payload)}`);
-}
-
-function saveCounterState_(state) {
+  const targetDate = normalizeSavedCounterDate_(todayDate || getTodayDateKey_());
   const sheet = getCounterSheet_();
-  setCounterValues_(sheet, {
-    total: Math.max(0, Math.round(Number(state.total) || 0)),
-    todayDate: normalizeDateKey_(state.todayDate, getTodayDateKey_()),
-    todayCount: Math.max(0, Math.round(Number(state.todayCount) || 0))
-  });
+  const state = readCounterState_(sheet);
+  return state.todayDate === targetDate ? state.todayCount : 0;
 }
 
-function initializeCounterFromLegacy_() {
-  const counterSheet = getCounterSheet_();
-  const values = getCounterValues_(counterSheet);
-  if (values.total !== '' && values.todayDate !== '' && values.todayCount !== '') return;
-
-  const dateKey = getTodayDateKey_();
-  const legacySummary = getLegacyCountSummary_(dateKey);
-  const initialState = {
-    total: legacySummary.total,
-    todayDate: dateKey,
-    todayCount: legacySummary.today
-  };
-
-  saveCounterState_(initialState);
-  Object.keys(legacySummary.daily).forEach((date) => {
-    if (date !== dateKey) upsertDailyRecord_(date, legacySummary.daily[date]);
-  });
-}
-
-function getLegacyCountSummary_(dateKey) {
+function initializeCounter_() {
   const spreadsheet = getSpreadsheet_();
-  const sheet = spreadsheet.getSheetByName(LEGACY_COUNT_SHEET_NAME);
-  const summary = { total: 0, today: 0, daily: {} };
-  if (!sheet || sheet.getLastRow() <= 1) return summary;
+  const currentDate = getTodayDateKey_();
+  let sheet = spreadsheet.getSheetByName(COUNTER_SHEET_NAME);
+  let backupSheetName = '';
 
-  const map = getHeaderMap_(sheet);
-  if (map.date == null || map.today == null || map.total == null) return summary;
-
-  const values = sheet.getDataRange().getValues().slice(1);
-  let todayTotal = 0;
-  let previousTotal = 0;
-  values.forEach((row) => {
-    const rowDate = normalizeDate(row[map.date]);
-    const rowToday = normalizeCounterNumber_(row[map.today], 0);
-    const rowTotal = normalizeCounterNumber_(row[map.total], 0);
-    const rowStartTotal = map.startTotal == null ? null : Number(row[map.startTotal]);
-    if (rowDate) {
-      summary.daily[rowDate] = (summary.daily[rowDate] || 0) + rowToday;
-      if (rowDate === dateKey) summary.today += rowToday;
-      if (rowDate === dateKey) todayTotal = Math.max(todayTotal, rowTotal);
-      if (rowDate < dateKey) previousTotal = Math.max(previousTotal, rowTotal);
-      if (rowDate === dateKey && Number.isFinite(rowStartTotal)) {
-        summary.today = Math.max(summary.today, rowTotal - rowStartTotal);
-      }
-    }
-    summary.total = Math.max(summary.total, rowTotal);
-  });
-
-  if (todayTotal > previousTotal) {
-    summary.today = Math.max(summary.today, todayTotal - previousTotal);
+  if (sheet) {
+    backupSheetName = backupCounterSheet_(spreadsheet, sheet);
+    sheet.clear();
+  } else {
+    sheet = spreadsheet.insertSheet(COUNTER_SHEET_NAME);
   }
-  if (summary.total === 0) {
-    summary.total = Object.values(summary.daily).reduce((sum, count) => sum + count, 0);
+
+  writeInitialCounterState_(sheet, currentDate);
+  return {
+    success: true,
+    sheet: sheet.getName(),
+    backup: backupSheetName,
+    total: 0,
+    todayDate: currentDate,
+    todayCount: 0
+  };
+}
+
+function backupCounterSheet_(spreadsheet, sheet) {
+  try {
+    const timestamp = Utilities.formatDate(new Date(), COUNT_TIMEZONE, 'yyyyMMdd_HHmmss');
+    const backupName = getUniqueSheetName_(spreadsheet, `${COUNTER_SHEET_NAME}_backup_${timestamp}`);
+    const backupSheet = sheet.copyTo(spreadsheet);
+    backupSheet.setName(backupName);
+    return backupSheet.getName();
+  } catch (error) {
+    Logger.log(`VisitorCounter backup failed: ${error.message || error}`);
+    return '';
   }
-  return summary;
+}
+
+function getUniqueSheetName_(spreadsheet, baseName) {
+  if (!spreadsheet.getSheetByName(baseName)) return baseName;
+  for (let index = 2; index < 100; index += 1) {
+    const name = `${baseName}_${index}`;
+    if (!spreadsheet.getSheetByName(name)) return name;
+  }
+  return `${baseName}_${Date.now()}`;
+}
+
+function writeInitialCounterState_(sheet, todayDate) {
+  sheet.getRange(1, 1, 4, COUNTER_HEADERS.length).setValues([
+    COUNTER_HEADERS,
+    ['total', 0],
+    ['todayDate', todayDate],
+    ['todayCount', 0]
+  ]);
+}
+
+function readCounterState_(sheet) {
+  const values = getCounterValues_(sheet);
+  return {
+    total: Number(values.total) || 0,
+    todayDate: normalizeSavedCounterDate_(values.todayDate),
+    todayCount: Number(values.todayCount) || 0
+  };
+}
+
+function writeCounterState_(sheet, state) {
+  setCounterValue_(sheet, 'total', state.total);
+  setCounterValue_(sheet, 'todayDate', state.todayDate);
+  setCounterValue_(sheet, 'todayCount', state.todayCount);
+}
+
+function normalizeSavedCounterDate_(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return Utilities.formatDate(value, COUNT_TIMEZONE, 'yyyy-MM-dd');
+  }
+  return String(value == null ? '' : value).trim();
+}
+
+function logVisitorCounterDebug_(action, currentDate, before, afterTotal, afterTodayCount, response) {
+  Logger.log(`VisitorCounter ${JSON.stringify({
+    action,
+    currentDate,
+    savedTodayDate: before.todayDate,
+    beforeTotal: before.total,
+    beforeTodayCount: before.todayCount,
+    afterTotal,
+    afterTodayCount,
+    responseJson: response
+  })}`);
 }
 
 function getCounterValues_(sheet) {

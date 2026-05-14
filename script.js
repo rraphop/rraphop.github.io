@@ -40,7 +40,6 @@ function shuffle(items) {
 }
 
 const visitorCounter = document.querySelector("#visitorCounter");
-const visitorSessionKey = "socialHistoryVisitorCountedDate";
 const visitorCacheKey = "socialHistoryVisitorCountCacheV3";
 const sheetApiUrl = window.QNA_CONFIG?.apiUrl
   || window.QNA_API_URL
@@ -169,15 +168,15 @@ function fitVisitorCountElement(element) {
 function fitVisitorCounts() {
   if (!visitorCounter) return;
   visitorCounter
-    .querySelectorAll("[data-visitor-today], [data-visitor-total]")
+    .querySelectorAll("#today-count, #total-count, [data-visitor-today], [data-visitor-total]")
     .forEach(fitVisitorCountElement);
 }
 
 function renderVisitorCounter(todayCount, totalCount) {
   if (!visitorCounter) return;
 
-  const todayElement = visitorCounter.querySelector("[data-visitor-today]");
-  const totalElement = visitorCounter.querySelector("[data-visitor-total]");
+  const todayElement = visitorCounter.querySelector("#today-count, [data-visitor-today]");
+  const totalElement = visitorCounter.querySelector("#total-count, [data-visitor-total]");
   if (todayElement) todayElement.textContent = (Number(todayCount) || 0).toLocaleString("ko-KR");
   if (totalElement) totalElement.textContent = (Number(totalCount) || 0).toLocaleString("ko-KR");
   requestAnimationFrame(fitVisitorCounts);
@@ -195,25 +194,10 @@ async function updateVisitorCounter() {
   if (!visitorCounter) return;
 
   const todayKey = getVisitorDateKey();
-  let shouldCountVisit = true;
-
-  try {
-    shouldCountVisit = sessionStorage.getItem(visitorSessionKey) !== todayKey;
-  } catch {
-    shouldCountVisit = true;
-  }
-
   const renderedCache = renderCachedVisitorCounter(todayKey);
 
   try {
-    const payload = await visitorApiRequest(shouldCountVisit ? "visit" : "count", { date: todayKey });
-    if (shouldCountVisit) {
-      try {
-        sessionStorage.setItem(visitorSessionKey, todayKey);
-      } catch {
-        // 카운트 저장은 Google Sheets에서 처리하므로 세션 표시 실패는 무시합니다.
-      }
-    }
+    const payload = await visitorApiRequest("visit", { date: todayKey });
     saveCachedVisitorCounter(payload, todayKey);
     renderVisitorCounter(payload.today, payload.total);
   } catch (error) {

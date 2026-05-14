@@ -6,7 +6,7 @@
   <title>사회·역사 배움터</title>
   <link rel="stylesheet" href="style.css?v=hero-title-scale-up">
   <script defer src="qna-config.js"></script>
-  <script defer src="script.js?v=visitor-count-daily-baseline"></script>
+  <script defer src="script.js?v=visitor-count-count-sheet"></script>
 </head>
 <body>
   <header class="site-header">
@@ -44,11 +44,11 @@
         <dl class="visitor-count-list">
           <div>
             <dt>오늘 방문자 수</dt>
-            <dd><span data-visitor-today>0</span>명</dd>
+            <dd><span id="today-count" data-visitor-today>0</span>명</dd>
           </div>
           <div>
             <dt>총 방문자 수</dt>
-            <dd><span data-visitor-total>0</span>명</dd>
+            <dd><span id="total-count" data-visitor-total>0</span>명</dd>
           </div>
         </dl>
       </aside>
