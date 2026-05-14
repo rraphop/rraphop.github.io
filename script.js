@@ -244,6 +244,26 @@ function createTermQuestion(unit, termEntry, termIndex, variantIndex) {
     {
       type: "단답형",
       question: `다음 설명에 알맞은 용어를 쓰시오. ${clue}`
+    },
+    {
+      type: "괄호 넣기",
+      question: `빈칸에 들어갈 핵심 용어를 쓰시오. ${sentence}`
+    },
+    {
+      type: "단답형",
+      question: `설명을 읽고 알맞은 개념을 쓰시오. ${clue}`
+    },
+    {
+      type: "괄호 넣기",
+      question: sentence.replace("____", "[          ]")
+    },
+    {
+      type: "단답형",
+      question: `다음 내용이 가리키는 말을 쓰시오. ${clue}`
+    },
+    {
+      type: "괄호 넣기",
+      question: `문장의 빈칸을 완성하시오. ${sentence.replace("____", "(          )")}`
     }
   ];
 
@@ -255,12 +275,20 @@ function createTermQuestion(unit, termEntry, termIndex, variantIndex) {
 
 function createQuestionPool(unit) {
   const maxQuestions = 30;
-  const variantCount = 3;
-  return Array.from({ length: variantCount }, (_, variantIndex) => (
-    shuffle(unit.terms.map((termEntry, termIndex) => (
+  if (!unit.terms.length) return [];
+
+  const pool = [];
+  let variantIndex = 0;
+
+  while (pool.length < maxQuestions) {
+    const questionRound = shuffle(unit.terms.map((termEntry, termIndex) => (
       createTermQuestion(unit, termEntry, termIndex, variantIndex)
-    )))
-  )).flat().slice(0, maxQuestions);
+    )));
+    pool.push(...questionRound.slice(0, maxQuestions - pool.length));
+    variantIndex += 1;
+  }
+
+  return pool;
 }
 
 function getAvailableQuizSubjects() {
@@ -338,7 +366,7 @@ function startQuiz() {
     totalAnswered: 0,
     totalCorrect: 0,
     round: 0,
-    maxQuestions: Math.min(30, pool.length)
+    maxQuestions: 30
   };
 
   restartQuiz.disabled = false;
