@@ -47,33 +47,8 @@ function setupSheets() {
   return setupSheets_();
 }
 
-function handleRequest_(e) {
-  const params = getParams_(e);
-  const action = params.action || 'list';
-
-  try {
-    let result;
-    if (action === 'list') result = listQuestions_();
-    else if (action === 'create') result = createQuestion_(params);
-    else if (action === 'update') result = updateQuestion_(params);
-    else if (action === 'answer') result = answerQuestion_(params);
-    else if (action === 'delete') result = deleteQuestion_(params);
-    else if (action === 'visit') result = recordVisit_(params);
-    else if (action === 'count') result = getVisitorCount_(params);
-    else if (action === 'acidRankings') result = listAcidRankings_();
-    else if (action === 'acidRankingCreate') result = createAcidRanking_(params);
-    else if (action === 'setupSheets') result = setupSheets_();
-    else if (action === 'ping') result = { message: 'QNA Apps Script is ready.', ...setupSheets_() };
-    else throw new Error('알 수 없는 요청입니다.');
-
-    return output_({ ok: true, ...result }, params.callback);
-  } catch (error) {
-    return output_({ ok: false, message: error.message || '요청 처리 중 오류가 발생했습니다.' }, params.callback);
-  }
-}
-
 function getParams_(e) {
-  const params = { ...(e && e.parameter ? e.parameter : {}) };
+  const params = Object.assign({}, e && e.parameter ? e.parameter : {});
   const contents = e && e.postData && e.postData.contents;
   if (contents) {
     try {
@@ -83,6 +58,58 @@ function getParams_(e) {
     }
   }
   return params;
+}
+
+function handleRequest_(e) {
+  const params = getParams_(e);
+  const action = params.action || 'list';
+
+  try {
+    let result;
+    switch (action) {
+      case 'list':
+        result = listQuestions_();
+        break;
+      case 'create':
+        result = createQuestion_(params);
+        break;
+      case 'update':
+        result = updateQuestion_(params);
+        break;
+      case 'answer':
+        result = answerQuestion_(params);
+        break;
+      case 'delete':
+        result = deleteQuestion_(params);
+        break;
+      case 'visit':
+        result = recordVisit_(params);
+        break;
+      case 'count':
+        result = getVisitorCount_(params);
+        break;
+      case 'acidRankings':
+        result = listAcidRankings_();
+        break;
+      case 'acidRankingCreate':
+        result = createAcidRanking_(params);
+        break;
+      case 'setupSheets':
+        result = setupSheets_();
+        break;
+      case 'ping':
+        result = setupSheets_();
+        result.message = 'QNA Apps Script is ready.';
+        break;
+      default:
+        throw new Error('알 수 없는 요청입니다.');
+    }
+
+    result.ok = true;
+    return output_(result, params.callback);
+  } catch (error) {
+    return output_({ ok: false, message: error.message || '요청 처리 중 오류가 발생했습니다.' }, params.callback);
+  }
 }
 
 function listQuestions_() {
@@ -149,7 +176,9 @@ function updateQuestion_(params) {
 
     setCell_(sheet, found.rowIndex, found.map, 'text', params.text);
     setCell_(sheet, found.rowIndex, found.map, 'private', toBoolean_(params.private));
-    return { question: publicQuestion_({ ...question, text: params.text, private: toBoolean_(params.private) }) };
+    question.text = params.text;
+    question.private = toBoolean_(params.private);
+    return { question: publicQuestion_(question) };
   } finally {
     lock.releaseLock();
   }
@@ -172,7 +201,9 @@ function answerQuestion_(params) {
     const answeredAt = new Date().toISOString();
     setCell_(sheet, found.rowIndex, found.map, 'answer', params.answer);
     setCell_(sheet, found.rowIndex, found.map, 'answeredAt', answeredAt);
-    return { question: publicQuestion_({ ...question, answer: params.answer, answeredAt }) };
+    question.answer = params.answer;
+    question.answeredAt = answeredAt;
+    return { question: publicQuestion_(question) };
   } finally {
     lock.releaseLock();
   }
@@ -457,7 +488,7 @@ function publicAcidRankingEntry_(entry) {
 }
 
 function sortAcidRankingEntries_(entries) {
-  return [...entries].sort((a, b) => (
+  return entries.slice().sort((a, b) => (
     Number(b.score || 0) - Number(a.score || 0)
     || Number(b.level || 0) - Number(a.level || 0)
     || Number(b.survivalMs || 0) - Number(a.survivalMs || 0)

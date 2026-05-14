@@ -117,3 +117,23 @@ window.QNA_CONFIG = {
 - 관리자 비밀번호는 홈페이지 JS에 넣지 않고 Apps Script 스크립트 속성 `QNA_ADMIN_PASSWORD`에서 검증합니다.
 - Apps Script를 새 버전으로 수정한 뒤에는 `배포 관리`에서 새 버전을 배포해야 홈페이지에 반영됩니다.
 - 매우 민감한 개인정보를 받는 게시판이라면 Apps Script보다 인증이 있는 별도 백엔드를 쓰는 편이 안전합니다.
+
+## 오류 해결
+
+`SyntaxError: Unexpected token 'else'` 또는 `SyntaxError: Illegal return statement`가 나오면 대부분 `apps-script/Code.gs` 파일 전체가 아니라 일부 줄만 붙여넣었거나, 줄 번호/diff 표시까지 함께 붙여넣은 경우입니다.
+
+1. Apps Script 편집기에서 `Code.gs` 안의 내용을 전체 선택합니다.
+2. 모두 삭제합니다.
+3. 이 프로젝트의 `apps-script/Code.gs` 파일 원문을 1라인부터 끝까지 그대로 붙여넣습니다.
+4. 저장한 뒤 함수 선택 메뉴에 `setupSheets`가 보이는지 확인합니다.
+
+정상 파일의 앞부분은 아래처럼 시작해야 합니다.
+
+```js
+const SHEET_NAME = 'QNA';
+const COUNT_SHEET_NAME = 'count';
+const ACID_RANKING_SHEET_NAMES = {
+  social: '사회 산성비 랭킹',
+  history: '역사 산성비 랭킹'
+};
+```
