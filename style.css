@@ -920,6 +920,20 @@ select {
   color: var(--accent-dark);
 }
 
+.acid-post-rank-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+}
+
+.acid-post-rank-actions[hidden] {
+  display: none;
+}
+
+.acid-post-rank-actions .button {
+  min-height: 44px;
+}
+
 .acid-ranking {
   margin-top: 22px;
 }

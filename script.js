@@ -861,9 +861,13 @@ function initAcidRainGame(root) {
   const acidResult = root.querySelector("[data-acid-result]");
   const acidResultSummary = root.querySelector("[data-acid-result-summary]");
   const acidRankForm = root.querySelector("[data-acid-rank-form]");
+  const acidRankLabel = root.querySelector("[data-acid-rank-label]");
   const acidRankName = root.querySelector("[data-acid-rank-name]");
   const acidRankSubmit = root.querySelector("[data-acid-rank-submit]");
   const acidRankMessage = root.querySelector("[data-acid-rank-message]");
+  const acidPostRankActions = root.querySelector("[data-acid-post-rank-actions]");
+  const acidRestart = root.querySelector("[data-acid-restart]");
+  const acidExit = root.querySelector("[data-acid-exit]");
   const acidRankings = root.querySelector("[data-acid-rankings]");
   const startAcidRain = root.querySelector("[data-acid-start]");
   const resetAcidRain = root.querySelector("[data-acid-reset]");
@@ -1178,6 +1182,32 @@ function initAcidRainGame(root) {
     acidState.timerId = null;
   }
 
+  function showAcidRankEntryControls() {
+    if (acidRankLabel) acidRankLabel.hidden = false;
+    if (acidRankName) {
+      acidRankName.hidden = false;
+      acidRankName.disabled = false;
+    }
+    if (acidRankSubmit) {
+      acidRankSubmit.hidden = false;
+      acidRankSubmit.disabled = false;
+    }
+    if (acidPostRankActions) acidPostRankActions.hidden = true;
+  }
+
+  function showAcidPostRankActions() {
+    if (acidRankLabel) acidRankLabel.hidden = true;
+    if (acidRankName) {
+      acidRankName.hidden = true;
+      acidRankName.disabled = true;
+    }
+    if (acidRankSubmit) {
+      acidRankSubmit.hidden = true;
+      acidRankSubmit.disabled = true;
+    }
+    if (acidPostRankActions) acidPostRankActions.hidden = false;
+  }
+
   function resetAcidGame(message = getReadyMessage()) {
     stopAcidTimers();
     acidState = createAcidState();
@@ -1192,11 +1222,8 @@ function initAcidRainGame(root) {
     acidSubmit.disabled = true;
     acidResult.classList.remove("show");
     if (acidResultSummary) acidResultSummary.textContent = "";
-    if (acidRankName) {
-      acidRankName.value = "";
-      acidRankName.disabled = false;
-    }
-    if (acidRankSubmit) acidRankSubmit.disabled = false;
+    showAcidRankEntryControls();
+    if (acidRankName) acidRankName.value = "";
     if (acidRankMessage) acidRankMessage.textContent = "";
     if (acidRankForm) acidRankForm.hidden = true;
     updateAcidStatus();
@@ -1247,11 +1274,8 @@ function initAcidRainGame(root) {
       <p>${acidState.score >= 120 ? `${termLabel} 반응 속도가 좋습니다.` : "다시 시작해서 더 많은 용어를 막아 보세요."}</p>
       `;
     }
-    if (acidRankName) {
-      acidRankName.value = "";
-      acidRankName.disabled = false;
-    }
-    if (acidRankSubmit) acidRankSubmit.disabled = false;
+    showAcidRankEntryControls();
+    if (acidRankName) acidRankName.value = "";
     if (acidRankMessage) acidRankMessage.textContent = "";
     if (acidRankForm) acidRankForm.hidden = false;
     updateAcidViewportMetrics();
@@ -1345,6 +1369,16 @@ function initAcidRainGame(root) {
     acidState.animationId = requestAnimationFrame(updateAcidFrame);
   }
 
+  function restartAcidRainGame() {
+    startAcidGame();
+  }
+
+  function exitAcidRainGame() {
+    resetAcidGame();
+    showGamePanel("timeline", true);
+    document.querySelector(".game-picker")?.scrollIntoView({ block: "start" });
+  }
+
   function handleAcidArenaPointerStart(event) {
     if (!isAcidTouchStartDevice() || acidState.running) return;
     if (root.classList.contains("acid-game-ended")) return;
@@ -1372,6 +1406,10 @@ function initAcidRainGame(root) {
 
   async function handleAcidRankSubmit(event) {
     event.preventDefault();
+    if (acidState.rankingSaved) {
+      showAcidPostRankActions();
+      return;
+    }
     if (acidRankName) acidRankName.disabled = true;
     if (acidRankSubmit) acidRankSubmit.disabled = true;
     if (acidRankMessage) acidRankMessage.textContent = "Google Sheets에 랭킹을 등록하는 중입니다.";
@@ -1383,10 +1421,10 @@ function initAcidRainGame(root) {
         ? `${getAcidRankingTitle(currentTermGroup)} ${savedRank}위에 등록되었습니다.`
         : "Google Sheets에 등록되었습니다. 현재 상위 10위에는 표시되지 않습니다.";
       if (acidRankMessage) acidRankMessage.textContent = rankingMessage;
+      showAcidPostRankActions();
     } catch (error) {
       console.warn(error);
-      if (acidRankName) acidRankName.disabled = false;
-      if (acidRankSubmit) acidRankSubmit.disabled = false;
+      showAcidRankEntryControls();
       if (acidRankMessage) acidRankMessage.textContent = "랭킹 등록에 실패했습니다. 잠시 후 다시 시도하세요.";
     }
   }
@@ -1412,6 +1450,8 @@ function initAcidRainGame(root) {
     });
     startAcidRain.addEventListener("click", startAcidGame);
     resetAcidRain.addEventListener("click", () => resetAcidGame());
+    acidRestart?.addEventListener("click", restartAcidRainGame);
+    acidExit?.addEventListener("click", exitAcidRainGame);
     acidForm.addEventListener("submit", handleAcidAnswer);
     acidRankForm?.addEventListener("submit", handleAcidRankSubmit);
     acidArena.addEventListener("pointerdown", handleAcidArenaPointerStart);

@@ -101,6 +101,9 @@ function handleRequest_(e) {
       case 'cleanupOldDailyRecords':
         result = cleanupOldDailyRecords();
         break;
+      case 'cleanupOldRecords':
+        result = cleanupOldRecords();
+        break;
       case 'ping':
         result = setupSheets_();
         result.message = 'QNA Apps Script is ready.';
@@ -235,20 +238,15 @@ function getVisitorCount_(params) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const state = getCounterState_(currentDate, true);
-    logCounterDebug_({
-      action: 'count',
-      currentDate,
-      savedTodayDate: state.todayDate,
-      savedTodayCount: state.todayCount,
-      nextTodayCount: state.todayCount,
-      total: state.total
-    });
+    const total = getTotalCounter_();
+    const todayInfo = getTodayVisitCountInfo_(currentDate);
+    syncCounterToday_(currentDate, todayInfo.today);
+    logTodayVisitDebug_('count', currentDate, todayInfo, total);
     return {
       success: true,
       date: currentDate,
-      today: state.todayCount,
-      total: state.total
+      today: todayInfo.today,
+      total
     };
   } finally {
     lock.releaseLock();
@@ -260,70 +258,183 @@ function recordVisit_(params) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const state = getNextVisitCounterState_(currentDate);
-    saveCounterState_(state);
-    cleanupOldDailyRecords_();
+    const total = incrementTotalCounter_(currentDate);
+    appendVisitLog_(currentDate, total);
+    const todayInfo = getTodayVisitCountInfo_(currentDate);
+    syncCounterToday_(currentDate, todayInfo.today);
     return {
       success: true,
       date: currentDate,
-      today: state.todayCount,
-      total: state.total
+      today: todayInfo.today,
+      total
     };
   } finally {
     lock.releaseLock();
   }
 }
 
-function getNextVisitCounterState_(currentDate) {
+function getTotalCounter_() {
   initializeCounterFromLegacy_();
-
   const sheet = getCounterSheet_();
-  const savedTotal = normalizeCounterNumber_(getCounterValue_(sheet, 'total'), 0);
-  const savedTodayDate = normalizeDateKey_(getCounterValue_(sheet, 'todayDate'), currentDate);
-  const savedTodayCount = normalizeCounterNumber_(getCounterValue_(sheet, 'todayCount'), 0);
-  const nextTodayCount = savedTodayDate === currentDate
-    ? savedTodayCount + 1
-    : 1;
-  const nextTotal = savedTotal + 1;
+  return normalizeCounterNumber_(getCounterValue_(sheet, 'total'), 0);
+}
 
-  if (savedTodayDate !== currentDate) {
-    upsertDailyRecord_(savedTodayDate, savedTodayCount);
-  }
+function incrementTotalCounter_(currentDate) {
+  initializeCounterFromLegacy_();
+  const sheet = getCounterSheet_();
+  const total = normalizeCounterNumber_(getCounterValue_(sheet, 'total'), 0) + 1;
+  setCounterValue_(sheet, 'total', total);
+  setCounterValue_(sheet, 'todayDate', currentDate);
+  return total;
+}
 
-  logCounterDebug_({
-    action: 'visit',
-    currentDate,
-    savedTodayDate,
-    savedTodayCount,
-    nextTodayCount,
-    total: nextTotal
+function syncCounterToday_(todayDate, today) {
+  const sheet = getCounterSheet_();
+  setCounterValue_(sheet, 'todayDate', todayDate);
+  setCounterValue_(sheet, 'todayCount', normalizeCounterNumber_(today, 0));
+}
+
+function getTodayVisitCount(todayDate) {
+  return getTodayVisitCountInfo_(todayDate || getTodayDateKey_()).today;
+}
+
+function getTodayVisitCountInfo_(todayDate) {
+  const normalizedToday = normalizeDateKey_(todayDate, getTodayDateKey_());
+  const logInfo = getVisitLogSheetInfo_(normalizedToday);
+  const sheet = logInfo.sheet;
+  const values = sheet.getDataRange().getValues();
+  let matchedRows = 0;
+  let today = 0;
+
+  values.slice(1).forEach((row) => {
+    const rowDate = normalizeDate(row[logInfo.dateColumnIndex]);
+    if (rowDate !== normalizedToday) return;
+
+    matchedRows += 1;
+    today += getVisitLogRowCount_(row, logInfo.countColumnIndex);
   });
 
   return {
-    total: nextTotal,
-    todayDate: currentDate,
-    todayCount: nextTodayCount
+    today,
+    todayDate: normalizedToday,
+    matchedRows,
+    sheetName: sheet.getName()
   };
 }
 
-function getCounterState_(dateKey, allowRollover) {
-  initializeCounterFromLegacy_();
+function appendVisitLog_(dateKey, total) {
+  const logInfo = getVisitLogSheetInfo_(dateKey);
+  const sheet = logInfo.sheet;
+  const columnCount = Math.max(sheet.getLastColumn(), logInfo.totalColumnIndex == null ? 0 : logInfo.totalColumnIndex + 1, 2);
+  const row = Array(columnCount).fill('');
 
-  const sheet = getCounterSheet_();
-  const state = {
-    total: normalizeCounterNumber_(getCounterValue_(sheet, 'total'), 0),
-    todayDate: normalizeDateKey_(getCounterValue_(sheet, 'todayDate'), dateKey),
-    todayCount: normalizeCounterNumber_(getCounterValue_(sheet, 'todayCount'), 0)
-  };
+  row[logInfo.dateColumnIndex] = dateKey;
+  if (logInfo.countColumnIndex != null) row[logInfo.countColumnIndex] = 1;
+  if (logInfo.totalColumnIndex != null) row[logInfo.totalColumnIndex] = total;
 
-  if (state.todayDate !== dateKey && allowRollover) {
-    upsertDailyRecord_(state.todayDate, state.todayCount);
-    state.todayDate = dateKey;
-    state.todayCount = 0;
-    saveCounterState_(state);
+  sheet.appendRow(row);
+}
+
+function getVisitLogSheetInfo_(targetDate) {
+  const spreadsheet = getSpreadsheet_();
+  const candidates = [LEGACY_COUNT_SHEET_NAME, DAILY_SHEET_NAME];
+  let fallbackInfo = null;
+  let populatedInfo = null;
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const sheet = spreadsheet.getSheetByName(candidates[index]);
+    if (!sheet) continue;
+
+    const info = getVisitLogSheetInfoFromSheet_(sheet);
+    if (!fallbackInfo) fallbackInfo = info;
+    if (sheet.getLastRow() <= 1 || !info.hasDateColumn) continue;
+
+    if (!populatedInfo) populatedInfo = info;
+    if (targetDate && countMatchingVisitRows_(info, targetDate) > 0) return info;
   }
 
-  return state;
+  if (populatedInfo) return populatedInfo;
+  if (fallbackInfo) return fallbackInfo;
+
+  const dailySheet = getDailySheet_();
+  return getVisitLogSheetInfoFromSheet_(dailySheet);
+}
+
+function getVisitLogSheetInfoFromSheet_(sheet) {
+  const headerMap = getVisitLogHeaderMap_(sheet);
+  const values = sheet.getDataRange().getValues();
+  const dateColumnIndex = headerMap.date != null
+    ? headerMap.date
+    : inferDateColumnIndex_(values);
+  const countColumnIndex = headerMap.count;
+
+  return {
+    sheet,
+    dateColumnIndex: dateColumnIndex == null ? 0 : dateColumnIndex,
+    countColumnIndex,
+    totalColumnIndex: headerMap.total,
+    hasDateColumn: dateColumnIndex != null
+  };
+}
+
+function getVisitLogHeaderMap_(sheet) {
+  if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
+    return { date: 0, count: 1, total: null };
+  }
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map((header) => String(header || '').trim().toLowerCase());
+
+  return {
+    date: findHeaderIndex_(headers, ['date', 'todaydate', '날짜', '일자']),
+    count: findHeaderIndex_(headers, ['count', 'today', 'todaycount', 'visits', '방문수', '방문자수']),
+    total: findHeaderIndex_(headers, ['total', 'totalcount', '누적', '전체'])
+  };
+}
+
+function findHeaderIndex_(headers, names) {
+  for (let index = 0; index < headers.length; index += 1) {
+    if (names.includes(headers[index])) return index;
+  }
+  return null;
+}
+
+function inferDateColumnIndex_(values) {
+  if (values.length <= 1) return null;
+  const maxColumn = values.reduce((max, row) => Math.max(max, row.length), 0);
+  for (let columnIndex = 0; columnIndex < maxColumn; columnIndex += 1) {
+    const found = values.slice(1, Math.min(values.length, 8)).some((row) => Boolean(normalizeDate(row[columnIndex])));
+    if (found) return columnIndex;
+  }
+  return null;
+}
+
+function countMatchingVisitRows_(logInfo, targetDate) {
+  const normalizedTargetDate = normalizeDateKey_(targetDate, getTodayDateKey_());
+  const values = logInfo.sheet.getDataRange().getValues();
+  return values.slice(1).reduce((count, row) => (
+    normalizeDate(row[logInfo.dateColumnIndex]) === normalizedTargetDate ? count + 1 : count
+  ), 0);
+}
+
+function getVisitLogRowCount_(row, countColumnIndex) {
+  if (countColumnIndex == null) return 1;
+
+  const count = normalizeCounterNumber_(row[countColumnIndex], 0);
+  return count > 0 ? count : 1;
+}
+
+function logTodayVisitDebug_(action, todayDate, todayInfo, total) {
+  const payload = {
+    action,
+    todayDate,
+    logSheetName: todayInfo.sheetName,
+    matchedRows: todayInfo.matchedRows,
+    summedToday: todayInfo.today,
+    total,
+    today: todayInfo.today
+  };
+  Logger.log(`VisitorCounter ${JSON.stringify(payload)}`);
 }
 
 function saveCounterState_(state) {
@@ -471,6 +582,10 @@ function cleanupOldDailyRecords() {
   } finally {
     lock.releaseLock();
   }
+}
+
+function cleanupOldRecords() {
+  return cleanupOldDailyRecords();
 }
 
 function cleanupOldDailyRecords_() {
@@ -813,6 +928,14 @@ function normalizeCountDateValue_(value) {
   const raw = String(value || '').trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
+  const looseDateMatch = raw.match(/^(\d{4})\s*[./\-년]\s*(\d{1,2})\s*[./\-월]\s*(\d{1,2})/);
+  if (looseDateMatch) {
+    const year = looseDateMatch[1];
+    const month = looseDateMatch[2].padStart(2, '0');
+    const day = looseDateMatch[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   const parsed = new Date(raw);
   if (!Number.isNaN(parsed.getTime())) {
     return Utilities.formatDate(parsed, COUNT_TIMEZONE, 'yyyy-MM-dd');
@@ -823,12 +946,6 @@ function normalizeCountDateValue_(value) {
 
 function getTodayDateKey_() {
   return Utilities.formatDate(new Date(), COUNT_TIMEZONE, 'yyyy-MM-dd');
-}
-
-function logCounterDebug_(payload) {
-  const message = `VisitorCounter ${JSON.stringify(payload)}`;
-  if (typeof console !== 'undefined' && console.log) console.log(message);
-  Logger.log(message);
 }
 
 function requireAdmin_(adminPassword) {
