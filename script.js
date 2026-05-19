@@ -456,9 +456,23 @@ function showFinalResult() {
   updateQuizStatus();
 }
 
+function scrollToPageTop() {
+  const scrollRoot = document.scrollingElement || document.documentElement || document.body;
+  scrollRoot.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
 function handleNextRound() {
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
   renderNextRound();
-  window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  requestAnimationFrame(() => {
+    scrollToPageTop();
+    requestAnimationFrame(scrollToPageTop);
+  });
 }
 
 if (subjectSelect && unitSelect && startQuizButton && quizForm) {
