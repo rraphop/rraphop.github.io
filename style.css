@@ -1663,8 +1663,7 @@ tbody th {
 
   .game-heading-row,
   .acid-input-row,
-  .acid-result-form,
-  .acid-ranking-grid {
+  .acid-result-form {
     grid-template-columns: 1fr;
   }
 
@@ -1822,5 +1821,11 @@ tbody th {
     display: block;
     overflow-x: auto;
     white-space: nowrap;
+  }
+}
+
+@media (max-width: 699px) {
+  .acid-ranking-grid {
+    grid-template-columns: 1fr;
   }
 }
