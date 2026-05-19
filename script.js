@@ -16,6 +16,80 @@ if (menuButton && siteNav) {
   });
 }
 
+const curriculumPage = document.querySelector("[data-curriculum-page]");
+
+if (curriculumPage) {
+  const curriculumDetailRegion = curriculumPage.querySelector("#curriculum-detail");
+  const curriculumDetailArticles = curriculumPage.querySelectorAll("[data-curriculum-detail]");
+  const curriculumSelectLinks = curriculumPage.querySelectorAll("[data-curriculum-select]");
+  const curriculumBackLinks = curriculumPage.querySelectorAll("[data-curriculum-back]");
+  const curriculumOverview = curriculumPage.querySelector("#curriculum-overview");
+
+  function setCurriculumView(year, shouldScroll = true, shouldUpdateHash = true) {
+    const isValidYear = year === "2015" || year === "2022";
+
+    if (curriculumDetailRegion) {
+      curriculumDetailRegion.hidden = !isValidYear;
+    }
+
+    curriculumDetailArticles.forEach((article) => {
+      article.hidden = article.dataset.curriculumDetail !== year;
+    });
+
+    curriculumSelectLinks.forEach((link) => {
+      if (link.dataset.curriculumSelect === year) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+
+    if (isValidYear) {
+      const hash = `#curriculum-${year}`;
+      if (shouldUpdateHash && location.hash !== hash) {
+        history.pushState(null, "", hash);
+      }
+      if (shouldScroll && curriculumDetailRegion) {
+        curriculumDetailRegion.focus({ preventScroll: true });
+        curriculumDetailRegion.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return;
+    }
+
+    if (shouldUpdateHash && location.hash.startsWith("#curriculum-")) {
+      history.pushState(null, "", `${location.pathname}${location.search}`);
+    }
+
+    if (shouldScroll && curriculumOverview) {
+      curriculumOverview.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  curriculumSelectLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      setCurriculumView(link.dataset.curriculumSelect);
+    });
+  });
+
+  curriculumBackLinks.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      setCurriculumView(null);
+    });
+  });
+
+  window.addEventListener("popstate", () => {
+    const hashYear = location.hash.replace("#curriculum-", "");
+    setCurriculumView(hashYear, false, false);
+  });
+
+  const initialYear = location.hash.replace("#curriculum-", "");
+  if (initialYear) {
+    setCurriculumView(initialYear, false, false);
+  }
+}
+
 function escapeHTML(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",

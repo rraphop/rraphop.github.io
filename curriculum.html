@@ -20,14 +20,14 @@
     </nav>
   </header>
 
-  <main class="page">
+  <main class="page" data-curriculum-page>
     <section class="page-heading">
       <p class="eyebrow">Curriculum</p>
       <h1>2015·2022 교육과정 안내</h1>
       <p>중학교 사회·역사 학습에서 다루는 주요 방향을 비교해 수업 준비와 복습에 활용할 수 있도록 정리했습니다.</p>
     </section>
 
-    <section class="section curriculum-grid">
+    <section class="section curriculum-grid" id="curriculum-overview" aria-label="교육과정 선택">
       <article class="curriculum-card">
         <h2>2015 개정 교육과정 사회·역사</h2>
         <p>핵심 개념과 성취기준을 중심으로 지식, 기능, 가치·태도를 균형 있게 기르는 데 초점을 둡니다.</p>
@@ -37,6 +37,9 @@
           <li>역사적 사고력과 민주 시민 의식 함양</li>
           <li>자료 해석, 토론, 탐구 활동을 통한 수업 전개</li>
         </ul>
+        <div class="curriculum-card-actions">
+          <a class="button primary" href="#curriculum-2015" data-curriculum-select="2015" aria-controls="curriculum-detail">2015 개정 교육과정</a>
+        </div>
       </article>
       <article class="curriculum-card">
         <h2>2022 개정 교육과정 사회·역사</h2>
@@ -47,6 +50,9 @@
           <li>지속가능성, 시민성, 다양성 등 현대 사회 쟁점 반영</li>
           <li>학습자의 질문과 프로젝트형 활동 확대</li>
         </ul>
+        <div class="curriculum-card-actions">
+          <a class="button primary" href="#curriculum-2022" data-curriculum-select="2022" aria-controls="curriculum-detail">2022 개정 교육과정</a>
+        </div>
       </article>
     </section>
 
@@ -78,6 +84,358 @@
           </tr>
         </tbody>
       </table>
+    </section>
+
+    <section class="section curriculum-detail" id="curriculum-detail" tabindex="-1" aria-live="polite" hidden>
+      <article class="curriculum-detail-article" id="curriculum-2015" data-curriculum-detail="2015" hidden>
+        <div class="curriculum-detail-top">
+          <div>
+            <p class="eyebrow">2015 Curriculum</p>
+            <h2>2015 개정 교육과정 중학교 사회·역사 요약</h2>
+          </div>
+          <a class="button secondary" href="#curriculum-overview" data-curriculum-back>교육과정 안내로 돌아가기</a>
+        </div>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2015-intro">
+          <h3 id="curriculum-2015-intro">교육과정 소개</h3>
+          <p>2015 개정 중학교 사회·역사는 민주 시민의 자질을 기르기 위해 사회현상과 역사적 변화를 체계적으로 이해하도록 구성되어 있습니다. 사회 영역에서는 정치, 법, 경제, 사회·문화, 지리를 통해 현대 사회의 구조와 문제를 탐구하고, 역사 영역에서는 한국사와 세계사의 주요 흐름을 비교하며 과거와 현재의 관계를 파악합니다.</p>
+          <p>사회과는 사회현상 이해와 민주 시민의 자질, 자료 조사·분석, 합리적 의사 결정과 사회 참여를 중학교 학습의 중심에 둡니다.</p>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2015-social">
+          <h3 id="curriculum-2015-social">사회 영역 요약</h3>
+          <p>정치, 법, 경제, 사회·문화, 지리 영역의 기본 개념을 익히고 자료 해석과 탐구 활동을 통해 사회 문제를 이해하도록 구성되어 있습니다.</p>
+          <div class="table-scroll">
+            <table>
+              <caption>2015 개정 중학교 사회 내용 체계</caption>
+              <thead>
+                <tr>
+                  <th scope="col">영역</th>
+                  <th scope="col">중학교 핵심 내용 요소</th>
+                  <th scope="col">학습 요약</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">정치</th>
+                  <td>정치, 민주주의, 정부 형태, 지방 자치 제도, 정치 과정, 정치 주체, 선거, 시민 참여, 국제 사회, 외교, 국가 간 갈등</td>
+                  <td>민주주의가 헌법과 정치 제도를 통해 실현되며 시민 참여가 정치 과정의 핵심임을 이해합니다. 지방 자치와 선거, 국제 사회의 협력과 갈등을 함께 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">법</th>
+                  <td>인권, 헌법, 기본권, 국가기관의 구성과 조직, 법의 역할, 법의 구분, 재판</td>
+                  <td>헌법과 법이 기본권 보장, 국가기관 운영, 사회 질서 유지와 정의 실현에 어떤 역할을 하는지 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">경제</th>
+                  <td>희소성, 경제 체제, 기업의 역할, 자산 관리, 신용 관리, 시장, 수요·공급, 시장 가격, 국내 총생산, 물가 상승, 실업, 국제 거래, 환율</td>
+                  <td>희소성에 따른 선택, 시장 가격의 결정, 국민 경제와 세계 경제의 기본 원리를 학습합니다. 합리적 소비와 금융 생활의 기초도 다룹니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">사회·문화</th>
+                  <td>사회화, 사회적 지위와 역할, 역할 갈등, 사회집단, 문화, 문화 이해 태도, 대중매체, 대중문화, 사회 불평등, 사회문제, 사회 변동, 한국 사회의 변동</td>
+                  <td>개인과 사회의 관계, 문화 다양성, 대중문화, 사회 불평등과 사회문제, 현대 사회 변화의 특징을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">지리 인식·장소·지역</th>
+                  <td>위치와 인간 생활, 지도 읽기, 지리 정보, 지리 정보 기술, 세계화와 지역화, 지역 간 상호작용</td>
+                  <td>위치와 영역, 장소감, 지역성, 공간 자료 활용을 통해 세계와 우리나라의 지역을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">자연환경과 인간 생활</th>
+                  <td>기후 지역, 열대 우림·온대 기후 지역, 산지·해안 지형, 자연재해와 인간 생활, 기후 환경 극복</td>
+                  <td>기후와 지형이 인간 생활에 미치는 영향을 파악하고 자연재해와 환경 적응 방식을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">인문환경과 인간 생활</th>
+                  <td>인구 분포·이동·문제, 도시 특성·도시화·도시 구조, 농업·공업·서비스업 입지, 자원의 편재성, 문화권, 문화 공존과 갈등</td>
+                  <td>인구, 도시, 산업, 자원, 문화의 공간적 차이를 비교하고 지역 변화와 문제를 탐구합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">지속가능한 세계</th>
+                  <td>지역 불균형, 지구환경문제, 지역 환경문제, 환경 의식, 지속가능한 발전, 개발과 보존의 조화, 인류 공존을 위한 노력</td>
+                  <td>지역 간 불균등과 환경 문제를 이해하고 지속가능한 발전과 공존을 위한 해결 방안을 탐구합니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2015-history">
+          <h3 id="curriculum-2015-history">역사 영역 요약</h3>
+          <p>세계사의 큰 흐름과 한국사의 주요 변화를 함께 살피며, 시대별 변화가 현재 사회와 어떻게 이어지는지 이해하도록 구성되어 있습니다.</p>
+          <div class="table-scroll">
+            <table>
+              <caption>2015 개정 중학교 역사 내용 체계</caption>
+              <thead>
+                <tr>
+                  <th scope="col">영역/대주제</th>
+                  <th scope="col">중학교 핵심 내용</th>
+                  <th scope="col">학습 요약</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">문명의 발생과 고대 세계의 형성</th>
+                  <td>역사의 의미와 역사 학습의 목적, 세계의 선사 문화, 고대 문명, 고대 제국의 특성</td>
+                  <td>인류의 출현에서 고대 문명과 제국 형성까지의 흐름을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">세계 종교의 확산과 지역 문화의 형성</th>
+                  <td>불교·힌두교 문화, 동아시아 문화, 이슬람 문화, 크리스트교 문화</td>
+                  <td>세계 종교가 지역 문화 형성과 교류에 미친 영향을 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">지역 세계의 교류와 변화</th>
+                  <td>몽골 제국과 문화 교류, 동아시아 질서 변화, 서아시아·북아프리카 질서 변화, 신항로 개척</td>
+                  <td>지역 세계가 교류·전쟁·무역을 통해 변화한 과정을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">제국주의 침략과 국민 국가 건설 운동</th>
+                  <td>국민 국가 체제, 산업화와 제국주의, 서아시아·인도·동아시아의 국민 국가 건설 운동</td>
+                  <td>산업화와 제국주의의 확산, 각 지역의 저항과 개혁을 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">세계 대전과 사회 변동</th>
+                  <td>두 차례 세계 대전, 국제 질서 변화, 민주주의 확산, 인권 회복과 평화 확산</td>
+                  <td>세계 대전이 정치·사회·국제 질서에 가져온 변화를 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">현대 세계의 전개와 과제</th>
+                  <td>냉전과 탈냉전, 제3세계, 세계화, 경제 통합, 탈권위주의 운동, 대중문화, 현대 세계 문제</td>
+                  <td>현대 세계의 변화와 오늘날의 과제를 역사적으로 바라봅니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">선사 문화와 고대 국가의 형성</th>
+                  <td>선사 문화, 고조선, 여러 나라의 성장, 삼국의 성립과 발전, 삼국의 문화와 대외 교류</td>
+                  <td>한국 고대 국가의 형성과 발전, 대외 교류를 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">남북국 시대의 전개</th>
+                  <td>신라의 삼국 통일, 통일신라의 발전, 발해의 건국과 발전, 남북국의 문화</td>
+                  <td>통일신라와 발해를 남북국의 관점에서 비교합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">고려의 성립과 변천</th>
+                  <td>고려의 건국, 통치 체제, 대외 관계, 몽골 간섭, 개혁, 고려 문화</td>
+                  <td>고려 사회의 정치 변화와 문화적 특징을 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">조선의 성립과 발전</th>
+                  <td>조선의 건국, 유교 정치, 통치 체제, 사림, 문화 발달, 왜란과 호란</td>
+                  <td>조선 전기의 국가 운영과 전쟁 이후 변화를 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">조선 사회의 변동</th>
+                  <td>조선 후기 정치 변동, 사회·경제 변화, 농민 봉기, 실학과 예술, 생활 문화 변화</td>
+                  <td>조선 후기 변화가 근대 사회로 이어지는 배경을 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">근·현대 사회의 전개</th>
+                  <td>개항, 근대 개혁, 일제 침략과 독립운동, 대한민국 정부 수립, 6·25 전쟁, 산업화와 민주화, 평화 통일</td>
+                  <td>근현대사의 주요 흐름을 현재 한국 사회와 연결해 이해합니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2015-points">
+          <h3 id="curriculum-2015-points">학습 포인트</h3>
+          <ul class="check-list">
+            <li>핵심 개념과 성취기준을 기준으로 단원별 주요 용어를 먼저 정리합니다.</li>
+            <li>지도, 통계, 사료 등 자료를 읽고 근거를 들어 설명하는 연습이 중요합니다.</li>
+            <li>정치·법·경제·사회문화·지리·역사의 개념을 실제 사회 문제와 연결해 봅니다.</li>
+            <li>한국사와 세계사의 흐름을 비교하며 시대 변화의 원인과 결과를 파악합니다.</li>
+          </ul>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2015-feature">
+          <h3 id="curriculum-2015-feature">2015 개정의 특징</h3>
+          <p class="curriculum-feature-note">2015 개정 교육과정은 핵심 개념과 성취기준을 중심으로 사회현상 이해, 역사적 사고력, 민주 시민 의식, 자료 해석 활동을 균형 있게 다루는 흐름이 강합니다.</p>
+          <p class="source-note">출처: 교육부 고시 제2018-162호 [별책 7] 사회과 교육과정(교육부 고시 제2015-74호의 일부개정), 공통 교육과정 사회·역사 부분 요약.</p>
+        </section>
+      </article>
+
+      <article class="curriculum-detail-article" id="curriculum-2022" data-curriculum-detail="2022" hidden>
+        <div class="curriculum-detail-top">
+          <div>
+            <p class="eyebrow">2022 Curriculum</p>
+            <h2>2022 개정 교육과정 중학교 사회·역사 요약</h2>
+          </div>
+          <a class="button secondary" href="#curriculum-overview" data-curriculum-back>교육과정 안내로 돌아가기</a>
+        </div>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2022-intro">
+          <h3 id="curriculum-2022-intro">교육과정 소개</h3>
+          <p>2022 개정 중학교 사회·역사는 지식 암기보다 탐구와 실천을 강조합니다. 사회 영역에서는 지리, 정치, 법, 경제, 사회·문화, 역사 관련 내용을 통해 현재 사회의 문제를 분석하고 시민으로 참여하는 능력을 기르며, 역사 영역에서는 한국사와 세계사를 통합적으로 살피고 역사 자료를 바탕으로 현재의 문제를 성찰합니다.</p>
+          <p>사회과는 핵심 아이디어와 지식·이해, 과정·기능, 가치·태도를 중심으로 민주시민, 생태전환, 지속가능한 삶을 강조합니다.</p>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2022-social">
+          <h3 id="curriculum-2022-social">사회 영역 요약</h3>
+          <p>지역과 생활, 사회 제도, 경제생활, 문화와 사회 변동을 현재의 문제 해결과 연결하고, 학생의 질문과 탐구 활동을 통해 학습하도록 구성되어 있습니다.</p>
+          <div class="table-scroll">
+            <table>
+              <caption>2022 개정 중학교 사회 내용 체계</caption>
+              <thead>
+                <tr>
+                  <th scope="col">영역</th>
+                  <th scope="col">중학교 핵심 내용 요소</th>
+                  <th scope="col">학습 요약</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">지리 인식</th>
+                  <td>우리나라 행정구역과 주요 도시, 세계 속 우리나라의 위치와 영역, 세계 각 지역의 국가와 주요 도시, 장소감과 장소성, 지역 간 연계와 상호작용, 지역의 문제와 발전 전망, 지리 정보와 지리적 시각화</td>
+                  <td>지도와 지리정보기술을 활용하여 위치, 장소, 지역을 파악하고 지역 문제를 분석합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">자연환경과 인간생활</th>
+                  <td>우리나라의 계절별·지역별 기후 특성과 변화, 세계 각 지역의 기후 특성, 주요 지형의 위치와 특성, 자연재해, 기후변화 대응 노력</td>
+                  <td>기후·지형·자연재해가 인간 생활에 미치는 영향을 이해하고 기후변화 대응과 환경 보호 실천을 다룹니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">인문환경과 인간생활</th>
+                  <td>지역별 인구 특징, 종교·문화경관과 생활양식, 문화 다양성과 문화 혼종성, 다양한 유형의 도시와 공간 구조, 산업 변화와 당면 과제, 자원 안보, 초국적 기업, 교통 발달과 지역 변화</td>
+                  <td>인구, 문화, 도시, 산업, 자원, 교통의 변화가 지역과 생활에 미치는 영향을 탐구합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">지속가능한 세계</th>
+                  <td>지역 간 불균등, 갈등과 분쟁, 지구환경 문제, 지속가능한 발전, 국제 협력과 연대, 평화와 공존</td>
+                  <td>공간적 불균등과 환경 문제를 이해하고 지속가능한 미래를 위한 협력과 실천 방안을 모색합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">정치</th>
+                  <td>민주주의, 정치 과정, 정치 주체, 선거, 시민 참여, 지방 자치, 국제 사회와 외교</td>
+                  <td>민주주의의 원리와 정치 참여의 의미를 이해하고, 지역·국가·세계 수준의 정치 문제를 분석합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">법</th>
+                  <td>인권, 헌법, 기본권, 국가기관, 법의 역할, 재판, 사회 질서와 정의</td>
+                  <td>헌법과 법이 시민의 권리 보장과 공동체 질서 유지에 어떤 역할을 하는지 학습합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">경제</th>
+                  <td>희소성, 합리적 선택, 시장과 가격, 경제 주체, 국민 경제, 물가·실업, 국제 거래, 금융 생활</td>
+                  <td>경제생활의 기본 원리를 이해하고 시장과 국가 경제, 세계 경제 및 금융 생활을 생활 문제와 연결합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">사회·문화</th>
+                  <td>사회화, 지위와 역할, 사회집단, 문화 이해, 대중문화, 문화 다양성, 사회 불평등, 사회문제, 사회 변동</td>
+                  <td>개인과 사회의 관계, 문화 다양성, 불평등과 사회 변동을 탐구하고 민주적 해결 태도를 기릅니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">역사 일반·지역사·한국사</th>
+                  <td>역사의 의미, 지역의 역사, 시대별 생활 모습, 한국사의 주요 흐름</td>
+                  <td>역사 자료를 통해 지역과 시대에 따라 달라진 사람들의 생활 모습을 이해하고 현재의 삶을 성찰합니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2022-history">
+          <h3 id="curriculum-2022-history">역사 영역 요약</h3>
+          <p>역사를 자료에 근거해 해석하고 설명하는 탐구 과정으로 다루며, 세계사와 한국사의 흐름을 현재의 과제와 연결해 성찰하도록 구성되어 있습니다.</p>
+          <div class="table-scroll">
+            <table>
+              <caption>2022 개정 중학교 역사 내용 체계</caption>
+              <thead>
+                <tr>
+                  <th scope="col">영역/대주제</th>
+                  <th scope="col">중학교 핵심 내용</th>
+                  <th scope="col">학습 요약</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">역사 학습의 기초</th>
+                  <td>역사 학습의 의미, 역사 자료의 성격, 역사 탐구 방법, 역사적 관점과 해석</td>
+                  <td>역사가 과거 사실의 암기가 아니라 자료를 근거로 해석하고 설명하는 탐구 과정임을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">문명의 발생과 고대 세계의 형성</th>
+                  <td>선사 문화, 문명의 발생, 고대 세계의 형성, 고대 사회의 특징</td>
+                  <td>인류의 출현과 문명 발생, 고대 사회의 형성 과정을 세계사와 한국사의 기초로 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">세계 종교의 확산과 지역 문화의 발전</th>
+                  <td>불교, 힌두교, 이슬람교, 크리스트교 등 세계 종교의 확산과 지역 문화 형성</td>
+                  <td>종교와 사상이 지역 문화의 형성과 교류에 미친 영향을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">지역 세계의 교류와 변화</th>
+                  <td>지역 세계 간 교류, 몽골 제국, 동서 교류, 지역 질서 변화</td>
+                  <td>교류와 갈등을 통해 각 지역 세계가 변화한 과정을 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">제국주의와 국민 국가 건설 운동</th>
+                  <td>산업화, 제국주의, 국민 국가 형성, 각 지역의 저항과 개혁 운동</td>
+                  <td>제국주의의 확산과 그에 대응한 국민 국가 건설 운동을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">세계 대전과 사회 변동</th>
+                  <td>제1·2차 세계 대전, 국제 질서 변화, 민주주의와 인권, 사회 변화</td>
+                  <td>세계 대전이 정치, 사회, 인권, 평화의 문제를 어떻게 바꾸었는지 학습합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">현대 세계의 전개와 과제</th>
+                  <td>냉전과 탈냉전, 세계화, 대중문화, 현대 세계의 문제, 지속가능한 사회의 과제</td>
+                  <td>현대 세계의 과제를 역사적 관점에서 파악하고 지속가능한 사회를 생각합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">국가의 형성과 발전</th>
+                  <td>고조선, 여러 나라의 성장, 삼국의 성립과 발전</td>
+                  <td>한국 고대 국가의 성립과 발전을 동아시아의 흐름 속에서 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">통일신라와 발해</th>
+                  <td>남북국의 성립, 통일신라와 발해의 정치·사회·문화</td>
+                  <td>통일신라와 발해의 발전을 비교하고 남북국 시대의 의미를 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">고려의 성립과 변천</th>
+                  <td>고려의 건국, 정치 변화, 대외 관계, 사회와 문화</td>
+                  <td>고려 사회의 변천과 대외 관계, 문화적 특징을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">조선의 성립과 발전</th>
+                  <td>조선의 건국, 통치 체제, 유교 정치, 사회와 문화의 발전</td>
+                  <td>조선의 국가 운영 방식과 유교 문화의 특징을 파악합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">조선 사회의 변동</th>
+                  <td>조선 후기 정치·사회·경제·문화 변화, 새로운 사상과 사회 움직임</td>
+                  <td>조선 후기 변화가 근대 사회로 이어지는 배경을 이해합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">근·현대 사회로의 전환</th>
+                  <td>개항, 근대 개혁, 일제 침략과 독립운동, 대한민국의 발전, 평화와 통일, 진로연계 학습</td>
+                  <td>근현대사의 주요 변화를 현재 한국 사회와 자신의 삶, 진로와 연결하여 탐구합니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2022-points">
+          <h3 id="curriculum-2022-points">학습 포인트</h3>
+          <ul class="check-list">
+            <li>핵심 아이디어를 먼저 잡고 지식·이해, 과정·기능, 가치·태도를 함께 정리합니다.</li>
+            <li>사회 문제를 스스로 질문하고 자료를 찾아 분석하는 탐구 과정을 연습합니다.</li>
+            <li>기후변화, 지속가능성, 문화 다양성, 시민 참여 같은 현대 사회 쟁점을 생활과 연결합니다.</li>
+            <li>역사 자료를 근거로 해석하고 현재의 문제를 역사적 관점에서 바라봅니다.</li>
+          </ul>
+        </section>
+
+        <section class="curriculum-content-section" aria-labelledby="curriculum-2022-feature">
+          <h3 id="curriculum-2022-feature">2022 개정의 특징</h3>
+          <p class="curriculum-feature-note">2022 개정 교육과정은 2015 개정의 핵심 개념 학습을 바탕으로 학생 주도 탐구, 디지털·미디어 자료 활용, 생태전환과 지속가능한 삶, 삶과 진로에 연결되는 학습 경험을 더 강조합니다.</p>
+          <p class="source-note">출처: 교육부 고시 제2022-33호 [별책 7] 사회과 교육과정, 공통 교육과정 사회·역사 부분 요약.</p>
+        </section>
+      </article>
     </section>
   </main>
 

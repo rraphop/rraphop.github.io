@@ -353,6 +353,7 @@ a {
 
 .feature-card,
 .curriculum-card,
+.curriculum-detail-article,
 .notice-panel,
 .quiz-shell,
 .game-shell,
@@ -375,6 +376,107 @@ details,
 .qna-form,
 .comparison-table {
   padding: 24px;
+}
+
+.curriculum-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.curriculum-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.curriculum-card-actions .button[aria-current="page"] {
+  box-shadow: 0 0 0 3px rgba(31, 122, 104, 0.16);
+}
+
+.curriculum-detail {
+  scroll-margin-top: 96px;
+  outline: none;
+}
+
+.curriculum-detail-article {
+  padding: 28px;
+}
+
+.curriculum-detail-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.curriculum-detail-top h2 {
+  margin: 0;
+  font-size: clamp(1.75rem, 3vw, 2.45rem);
+  line-height: 1.22;
+}
+
+.curriculum-content-section {
+  margin-top: 28px;
+}
+
+.curriculum-content-section:first-of-type {
+  margin-top: 0;
+}
+
+.curriculum-content-section h3 {
+  margin: 0 0 10px;
+  color: var(--accent-dark);
+  font-size: 1.22rem;
+  line-height: 1.3;
+}
+
+.table-scroll {
+  width: 100%;
+  margin: 14px 0 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.table-scroll table {
+  display: table;
+  min-width: 760px;
+  border: 0;
+  white-space: normal;
+}
+
+.table-scroll caption {
+  caption-side: top;
+  padding: 12px 14px;
+  color: var(--accent-dark);
+  background: #f7fbfb;
+  border-bottom: 1px solid var(--line);
+  font-weight: 900;
+  text-align: left;
+}
+
+.table-scroll th:first-child {
+  width: 22%;
+}
+
+.curriculum-feature-note {
+  margin: 0;
+  padding: 14px;
+  color: #16343a;
+  background: var(--sky);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.source-note {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .game-picker {
@@ -1775,6 +1877,27 @@ tbody th {
 
   .preview-grid {
     padding-top: 34px;
+  }
+
+  .curriculum-card-actions .button {
+    width: 100%;
+  }
+
+  .curriculum-detail-article {
+    padding: 20px;
+  }
+
+  .curriculum-detail-top {
+    display: grid;
+    gap: 14px;
+  }
+
+  .curriculum-detail-top .button {
+    width: 100%;
+  }
+
+  .table-scroll table {
+    min-width: 720px;
   }
 
   .timeline-card {
