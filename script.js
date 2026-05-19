@@ -152,7 +152,7 @@ function sheetsApiRequest(action, params = {}, options = {}) {
     const script = document.createElement("script");
     const timeoutId = window.setTimeout(() => {
       cleanup();
-      reject(new Error(options.timeoutMessage || "Google Sheets 응답 시간이 초과되었습니다."));
+      reject(new Error(options.timeoutMessage || "응답 시간이 초과되었습니다."));
     }, sheetRequestTimeout);
 
     function cleanup() {
@@ -1296,7 +1296,7 @@ function initAcidRainGame(root) {
       return;
     }
 
-    acidRankingStatus = "Google Sheets 랭킹을 불러오는 중입니다.";
+    acidRankingStatus = "랭킹기록을 불러오는 중입니다.";
     renderAcidRankings();
 
     try {
@@ -1313,7 +1313,7 @@ function initAcidRainGame(root) {
     } catch (error) {
       if (requestId !== acidRankingLoadId) return;
       console.warn(error);
-      acidRankingStatus = "Google Sheets 랭킹을 불러오지 못해 마지막 기록을 표시합니다.";
+      acidRankingStatus = "랭킹기록을 불러오지 못해 마지막 기록을 표시합니다.";
     }
 
     renderAcidRankings();
@@ -1724,7 +1724,7 @@ function qnaApiRequest(action, params = {}) {
     const script = document.createElement("script");
     const timeoutId = window.setTimeout(() => {
       cleanup();
-      reject(new Error("Google Sheets 게시판 응답 시간이 초과되었습니다."));
+      reject(new Error("게시판 응답 시간이 초과되었습니다."));
     }, qnaRequestTimeout);
 
     function cleanup() {
@@ -1752,7 +1752,7 @@ function qnaApiRequest(action, params = {}) {
     script.async = true;
     script.onerror = () => {
       cleanup();
-      reject(new Error("Google Sheets 게시판에 연결하지 못했습니다."));
+      reject(new Error("게시판에 연결하지 못했습니다."));
     };
     script.src = url.toString();
     document.head.appendChild(script);
