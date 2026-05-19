@@ -456,6 +456,11 @@ function showFinalResult() {
   updateQuizStatus();
 }
 
+function handleNextRound() {
+  renderNextRound();
+  window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+}
+
 if (subjectSelect && unitSelect && startQuizButton && quizForm) {
   populateSubjects();
   subjectSelect.addEventListener("change", populateUnits);
@@ -465,7 +470,7 @@ if (subjectSelect && unitSelect && startQuizButton && quizForm) {
   });
   startQuizButton.addEventListener("click", startQuiz);
   quizForm.addEventListener("submit", gradeCurrentRound);
-  nextRound.addEventListener("click", renderNextRound);
+  nextRound.addEventListener("click", handleNextRound);
   restartQuiz.addEventListener("click", startQuiz);
 }
 
