@@ -396,12 +396,24 @@ details,
 }
 
 .curriculum-detail {
+  margin-top: 0;
   scroll-margin-top: 96px;
   outline: none;
 }
 
+.curriculum-detail.is-active,
+.curriculum-detail:has(.curriculum-detail-article:target) {
+  margin-top: 28px;
+}
+
 .curriculum-detail-article {
+  display: none;
   padding: 28px;
+}
+
+.curriculum-detail-article.is-active,
+.curriculum-detail-article:target {
+  display: block;
 }
 
 .curriculum-detail-top {

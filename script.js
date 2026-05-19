@@ -29,11 +29,13 @@ if (curriculumPage) {
     const isValidYear = year === "2015" || year === "2022";
 
     if (curriculumDetailRegion) {
-      curriculumDetailRegion.hidden = !isValidYear;
+      curriculumDetailRegion.classList.toggle("is-active", isValidYear);
     }
 
     curriculumDetailArticles.forEach((article) => {
-      article.hidden = article.dataset.curriculumDetail !== year;
+      const isSelectedArticle = article.dataset.curriculumDetail === year;
+      article.classList.toggle("is-active", isSelectedArticle);
+      article.setAttribute("aria-hidden", String(!isSelectedArticle));
     });
 
     curriculumSelectLinks.forEach((link) => {
