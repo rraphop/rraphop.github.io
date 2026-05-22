@@ -25,7 +25,7 @@ const COUNTER_TODAY_COUNT_CELL = 'J1';
 const COUNTER_TODAY_FORMULA = '=TODAY()';
 const COUNTER_TODAY_COUNT_FORMULA = '=IFERROR(SUM(FILTER(B:B, TEXT(A:A,"yyyy-mm-dd")=TEXT(I1,"yyyy-mm-dd"))),0)';
 const COUNTER_TOTAL_OFFSET_PROPERTY = 'VISITOR_COUNTER_TOTAL_OFFSET';
-const COUNTER_DEBUG_VERSION = 'counter-debug-2026-05-14-03';
+const COUNTER_DEBUG_VERSION = 'counter-daily-rollup-2026-05-23-01';
 const DAILY_HEADERS = ['date', 'count'];
 const MONTHLY_HEADERS = ['month', 'count'];
 const COUNT_TIMEZONE = 'Asia/Seoul';
@@ -315,7 +315,7 @@ function recordVisit_(params) {
   try {
     const sheet = getCounterSheet_();
     const beforeTotal = readCounterTotal_(sheet);
-    appendCounterVisit_(sheet, currentDate);
+    incrementCounterVisit_(sheet, currentDate);
     const total = readCounterTotal_(sheet);
     const todayInfo = readCounterToday_(sheet);
     const response = buildCounterResponse_(sheet, total, todayInfo, currentDate);
@@ -394,17 +394,30 @@ function getUniqueSheetName_(spreadsheet, baseName) {
   return `${baseName}_${Date.now()}`;
 }
 
-function appendCounterVisit_(sheet, currentDate) {
+function incrementCounterVisit_(sheet, currentDate) {
+  const rowIndex = findCounterDateRow_(sheet, currentDate);
+  if (rowIndex) {
+    const nextCount = normalizeCounterNumber_(sheet.getRange(rowIndex, 2).getValue(), 0) + 1;
+    sheet.getRange(rowIndex, 1).setValue(Utilities.parseDate(currentDate, COUNT_TIMEZONE, 'yyyy-MM-dd'));
+    sheet.getRange(rowIndex, 2).setValue(nextCount);
+    sheet.getRange(rowIndex, 1).setNumberFormat('yyyy-mm-dd');
+    sheet.getRange(rowIndex, 2).setNumberFormat('0');
+    SpreadsheetApp.flush();
+    return { date: currentDate, count: nextCount, rowIndex };
+  }
+
   const recordDate = Utilities.parseDate(currentDate, COUNT_TIMEZONE, 'yyyy-MM-dd');
   sheet.appendRow([recordDate, 1]);
-  const rowIndex = sheet.getLastRow();
-  sheet.getRange(rowIndex, 1).setNumberFormat('yyyy-mm-dd');
-  sheet.getRange(rowIndex, 2).setNumberFormat('0');
+  const newRowIndex = sheet.getLastRow();
+  sheet.getRange(newRowIndex, 1).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(newRowIndex, 2).setNumberFormat('0');
   SpreadsheetApp.flush();
+  return { date: currentDate, count: 1, rowIndex: newRowIndex };
 }
 
 function readCounterToday_(sheet) {
   SpreadsheetApp.flush();
+  // 오늘 방문자 수: count!J1 공식이 오늘 날짜 행의 count 값을 계산한 결과를 읽습니다.
   const j1Value = sheet.getRange(COUNTER_TODAY_COUNT_CELL).getValue();
   return {
     today: normalizeCounterNumber_(j1Value, 0),
@@ -413,6 +426,7 @@ function readCounterToday_(sheet) {
 }
 
 function readCounterTotal_(sheet) {
+  // 총 방문자 수: count 시트의 날짜별 count 합계를 기준으로 계산합니다.
   return getCounterTotalOffset_() + readCounterRecordTotal_(sheet);
 }
 
@@ -439,6 +453,105 @@ function readCounterDateTotal_(sheet, targetDate) {
 function getCounterTotalOffset_() {
   const props = PropertiesService.getScriptProperties();
   return normalizeCounterNumber_(props.getProperty(COUNTER_TOTAL_OFFSET_PROPERTY), 0);
+}
+
+function findCounterDateRow_(sheet, dateKey) {
+  const targetDate = normalizeCounterDateKey_(dateKey);
+  if (!targetDate) return null;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return null;
+
+  const values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let index = 0; index < values.length; index += 1) {
+    if (normalizeCounterDateKey_(values[index][0]) === targetDate) return index + 2;
+  }
+  return null;
+}
+
+function setCounterDateTotal_(sheet, dateKey, count) {
+  const value = normalizeCounterNumber_(count, 0);
+  const recordDate = Utilities.parseDate(dateKey, COUNT_TIMEZONE, 'yyyy-MM-dd');
+  const rowIndex = findCounterDateRow_(sheet, dateKey);
+
+  if (rowIndex) {
+    sheet.getRange(rowIndex, 1, 1, COUNTER_HEADERS.length).setValues([[recordDate, value]]);
+    sheet.getRange(rowIndex, 1).setNumberFormat('yyyy-mm-dd');
+    sheet.getRange(rowIndex, 2).setNumberFormat('0');
+    return rowIndex;
+  }
+
+  sheet.appendRow([recordDate, value]);
+  const newRowIndex = sheet.getLastRow();
+  sheet.getRange(newRowIndex, 1).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(newRowIndex, 2).setNumberFormat('0');
+  return newRowIndex;
+}
+
+function compactCounterSheetRecords_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { compacted: false, dates: 0, total: 0 };
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, COUNTER_HEADERS.length).getValues();
+  const countsByDate = {};
+  let originalRecordCount = 0;
+  let needsCompaction = false;
+
+  rows.forEach((row) => {
+    const dateKey = normalizeCounterDateKey_(row[0]);
+    const value = normalizeCounterNumber_(row[1], 0);
+    const hasAnyValue = String(row[0] || '').trim() !== '' || String(row[1] || '').trim() !== '';
+
+    if (!dateKey || value <= 0) {
+      if (hasAnyValue) needsCompaction = true;
+      return;
+    }
+
+    if (countsByDate[dateKey] != null) needsCompaction = true;
+    countsByDate[dateKey] = (countsByDate[dateKey] || 0) + value;
+    originalRecordCount += 1;
+  });
+
+  const dates = Object.keys(countsByDate).sort();
+  if (dates.length !== originalRecordCount) needsCompaction = true;
+  if (!needsCompaction) {
+    return {
+      compacted: false,
+      dates: dates.length,
+      total: dates.reduce((sum, dateKey) => sum + countsByDate[dateKey], 0)
+    };
+  }
+
+  // 마이그레이션: 기존 방문 1회 1행 데이터를 날짜별 1행 합계로 접어 누적 total을 보존합니다.
+  sheet.getRange(2, 1, lastRow - 1, COUNTER_HEADERS.length).clearContent();
+  if (dates.length > 0) {
+    const values = dates.map((dateKey) => [
+      Utilities.parseDate(dateKey, COUNT_TIMEZONE, 'yyyy-MM-dd'),
+      countsByDate[dateKey]
+    ]);
+    sheet.getRange(2, 1, values.length, COUNTER_HEADERS.length).setValues(values);
+    sheet.getRange(2, 1, values.length, 1).setNumberFormat('yyyy-mm-dd');
+    sheet.getRange(2, 2, values.length, 1).setNumberFormat('0');
+  }
+  SpreadsheetApp.flush();
+
+  return {
+    compacted: true,
+    dates: dates.length,
+    total: dates.reduce((sum, dateKey) => sum + countsByDate[dateKey], 0)
+  };
+}
+
+function migrateCounterOffsetIntoSheet_(sheet) {
+  const offset = getCounterTotalOffset_();
+  if (offset <= 0) return { migrated: false, offset: 0 };
+
+  const currentDate = getTodayDateKey_();
+  const currentCount = readCounterDateTotal_(sheet, currentDate);
+  setCounterDateTotal_(sheet, currentDate, currentCount + offset);
+  PropertiesService.getScriptProperties().deleteProperty(COUNTER_TOTAL_OFFSET_PROPERTY);
+  SpreadsheetApp.flush();
+  return { migrated: true, offset };
 }
 
 function buildCounterResponse_(sheet, total, todayInfo, currentDate) {
@@ -472,10 +585,15 @@ function migrateLegacyCounterSheet_(sheet) {
     }
   });
 
+  const currentDate = getTodayDateKey_();
   if (legacyTotal > 0) {
-    const props = PropertiesService.getScriptProperties();
-    const currentOffset = getCounterTotalOffset_();
-    props.setProperty(COUNTER_TOTAL_OFFSET_PROPERTY, String(currentOffset + legacyTotal));
+    sheet.clear();
+    sheet.getRange(1, 1, 1, COUNTER_HEADERS.length).setValues([COUNTER_HEADERS]);
+    sheet.appendRow([Utilities.parseDate(currentDate, COUNT_TIMEZONE, 'yyyy-MM-dd'), legacyTotal]);
+    sheet.getRange(2, 1).setNumberFormat('yyyy-mm-dd');
+    sheet.getRange(2, 2).setNumberFormat('0');
+    SpreadsheetApp.flush();
+    return;
   }
 
   sheet.clear();
@@ -660,6 +778,12 @@ function findTwoColumnRow_(sheet, key) {
 }
 
 function normalizeCounterNumber_(value, fallback) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const sheetEpoch = Date.UTC(1899, 11, 30);
+    const serialDateNumber = Math.round((value.getTime() - sheetEpoch) / 86400000);
+    return Math.max(0, serialDateNumber);
+  }
+
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.max(0, Math.round(number));
@@ -802,6 +926,8 @@ function ensureCounterHeaders_(sheet) {
   sheet.getRange(COUNTER_TODAY_COUNT_CELL).setNumberFormat('0');
   sheet.getRange(COUNTER_TODAY_CELL).setFormula(COUNTER_TODAY_FORMULA);
   sheet.getRange(COUNTER_TODAY_COUNT_CELL).setFormula(COUNTER_TODAY_COUNT_FORMULA);
+  compactCounterSheetRecords_(sheet);
+  migrateCounterOffsetIntoSheet_(sheet);
 }
 
 function getHeaderMap_(sheet) {

@@ -23,7 +23,7 @@ I1: =TODAY()
 J1: =IFERROR(SUM(FILTER(B:B, TEXT(A:A,"yyyy-mm-dd")=TEXT(I1,"yyyy-mm-dd"))),0)
 ```
 
-`count` 시트는 방문마다 `date`, `count` 행을 추가합니다. API의 `today` 값은 Apps Script가 직접 계산하지 않고 반드시 `J1` 값을 읽어 반환합니다.
+`count` 시트는 날짜별 1행만 유지합니다. 같은 날짜의 방문은 해당 날짜 행의 `count` 값을 1씩 올리고, API의 `today` 값은 `J1` 값을 읽어 반환합니다.
 방문자 날짜 기준은 Apps Script의 `Asia/Seoul` 기준 하루(00:00:00~23:59:59)입니다.
 
 자동 생성되는 `daily_count` 시트 헤더:
@@ -131,7 +131,7 @@ window.QNA_CONFIG = {
 
 - 정적 HTML에서도 동작하도록 `script.js`는 Apps Script를 JSONP 방식으로 호출합니다.
 - 방문자 카운터 숫자는 Google Sheets 응답 값만 표시하고, 브라우저에는 중복 계수 방지용 날짜만 저장합니다.
-- 예전 `key/value` 구조의 `count` 시트가 남아 있으면 Apps Script가 기존 `total` 값을 스크립트 속성 오프셋으로 옮기고 `date/count` 구조로 정리합니다.
+- 예전 `key/value` 구조나 방문 1회당 1행 구조의 `count` 시트가 남아 있으면 Apps Script가 기존 누적값을 날짜별 `date/count` 구조로 합산 정리합니다.
 - 산성비 랭킹은 Google Sheets의 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트에 각각 저장되며 홈페이지에는 상위 10개 기록이 표시됩니다.
 - 같은 브라우저/기기에서 같은 날 새로고침하거나 다시 방문해도 중복 카운트되지 않도록 `localStorage`에 오늘 계수 여부만 저장합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.
