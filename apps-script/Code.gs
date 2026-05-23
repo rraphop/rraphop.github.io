@@ -26,6 +26,8 @@ const COUNTER_TODAY_FORMULA = '=TODAY()';
 const COUNTER_TODAY_COUNT_FORMULA = '=IFERROR(SUM(FILTER(B:B, TEXT(A:A,"yyyy-mm-dd")=TEXT(I1,"yyyy-mm-dd"))),0)';
 const COUNTER_TOTAL_OFFSET_PROPERTY = 'VISITOR_COUNTER_TOTAL_OFFSET';
 const COUNTER_DEBUG_VERSION = 'counter-daily-rollup-2026-05-23-01';
+const COUNTER_LAYOUT_VERSION_PROPERTY = 'VISITOR_COUNTER_LAYOUT_VERSION';
+const COUNTER_MIGRATION_VERSION_PROPERTY = 'VISITOR_COUNTER_MIGRATION_VERSION';
 const DAILY_HEADERS = ['date', 'count'];
 const MONTHLY_HEADERS = ['month', 'count'];
 const COUNT_TIMEZONE = 'Asia/Seoul';
@@ -554,6 +556,15 @@ function migrateCounterOffsetIntoSheet_(sheet) {
   return { migrated: true, offset };
 }
 
+function shouldRunCounterMaintenance_(propertyName) {
+  const props = PropertiesService.getScriptProperties();
+  return props.getProperty(propertyName) !== COUNTER_DEBUG_VERSION;
+}
+
+function markCounterMaintenanceDone_(propertyName) {
+  PropertiesService.getScriptProperties().setProperty(propertyName, COUNTER_DEBUG_VERSION);
+}
+
 function buildCounterResponse_(sheet, total, todayInfo, currentDate) {
   return {
     success: true,
@@ -920,13 +931,22 @@ function ensureHeaders_(sheet, headers = HEADERS) {
 function ensureCounterHeaders_(sheet) {
   migrateLegacyCounterSheet_(sheet);
   sheet.getRange(1, 1, 1, COUNTER_HEADERS.length).setValues([COUNTER_HEADERS]);
-  sheet.getRange('A:A').setNumberFormat('yyyy-mm-dd');
-  sheet.getRange('B:B').setNumberFormat('0');
-  sheet.getRange(COUNTER_TODAY_CELL).setNumberFormat('yyyy-mm-dd');
-  sheet.getRange(COUNTER_TODAY_COUNT_CELL).setNumberFormat('0');
   sheet.getRange(COUNTER_TODAY_CELL).setFormula(COUNTER_TODAY_FORMULA);
   sheet.getRange(COUNTER_TODAY_COUNT_CELL).setFormula(COUNTER_TODAY_COUNT_FORMULA);
-  compactCounterSheetRecords_(sheet);
+
+  if (shouldRunCounterMaintenance_(COUNTER_LAYOUT_VERSION_PROPERTY)) {
+    sheet.getRange('A:A').setNumberFormat('yyyy-mm-dd');
+    sheet.getRange('B:B').setNumberFormat('0');
+    sheet.getRange(COUNTER_TODAY_CELL).setNumberFormat('yyyy-mm-dd');
+    sheet.getRange(COUNTER_TODAY_COUNT_CELL).setNumberFormat('0');
+    markCounterMaintenanceDone_(COUNTER_LAYOUT_VERSION_PROPERTY);
+  }
+
+  if (shouldRunCounterMaintenance_(COUNTER_MIGRATION_VERSION_PROPERTY)) {
+    compactCounterSheetRecords_(sheet);
+    markCounterMaintenanceDone_(COUNTER_MIGRATION_VERSION_PROPERTY);
+  }
+
   migrateCounterOffsetIntoSheet_(sheet);
 }
 
