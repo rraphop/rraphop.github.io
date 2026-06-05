@@ -1,12 +1,12 @@
 # Google Sheets + Apps Script Q&A/방문자 카운터/랭킹 설정
 
-현재 `qna.html`의 디자인과 게시판 구성은 그대로 두고, 질문/답변 데이터, `index.html` 방문자 카운터, `game.html` 산성비 게임 랭킹을 Google Sheets에 저장하도록 연결합니다.
+현재 `qna.html`의 디자인과 게시판 구성은 그대로 두고, 질문/답변 데이터, `index.html` 방문자 카운터, `game.html` 산성비 게임 랭킹, `history-cause-effect-game.html` 역사 추리왕 랭킹을 Google Sheets에 저장하도록 연결합니다.
 
 ## 1. Google Sheets 만들기
 
 1. Google Drive에서 새 스프레드시트를 만듭니다.
 2. 문서 이름은 예를 들어 `사회역사 QNA 게시판`으로 정합니다.
-3. 시트 탭 이름은 직접 만들 필요가 없습니다. Apps Script가 `QNA`, `count`, `daily_count`, `monthly_count`, `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트를 자동으로 만들고 헤더를 추가합니다.
+3. 시트 탭 이름은 직접 만들 필요가 없습니다. Apps Script가 `QNA`, `count`, `daily_count`, `monthly_count`, `사회 산성비 랭킹`, `역사 산성비 랭킹`, `역사 추리왕 랭킹` 시트를 자동으로 만들고 헤더를 추가합니다.
 
 자동 생성되는 `QNA` 시트 헤더:
 
@@ -44,6 +44,12 @@ month, count
 
 ```text
 id, createdAt, name, score, level, survivalMs
+```
+
+자동 생성되는 `역사 추리왕 랭킹` 시트 헤더:
+
+```text
+id, createdAt, nickname, score, area, correctCount, answeredCount, maxCombo, date
 ```
 
 ## 2. Apps Script 붙여넣기
@@ -93,6 +99,7 @@ daily_count
 monthly_count
 사회 산성비 랭킹
 역사 산성비 랭킹
+역사 추리왕 랭킹
 ```
 
 이미 웹앱을 배포했다면 아래 주소를 브라우저에서 한 번 열어도 같은 초기화가 실행됩니다.
@@ -101,7 +108,7 @@ monthly_count
 
 ## 6. qna-config.js 확인
 
-`qna-config.js`의 URL이 배포된 웹앱 `/exec` URL과 같아야 합니다. 이 파일은 Q&A, 방문자 카운터, 산성비 랭킹이 같은 Google Sheets 웹앱을 바라보도록 공유됩니다.
+`qna-config.js`의 URL이 배포된 웹앱 `/exec` URL과 같아야 합니다. 이 파일은 Q&A, 방문자 카운터, 산성비 랭킹, 역사 추리왕 랭킹이 같은 Google Sheets 웹앱을 바라보도록 공유됩니다.
 
 ```js
 const QNA_API_URL = "여기에 Apps Script 웹앱 /exec URL";
@@ -123,7 +130,8 @@ window.QNA_CONFIG = {
 학생 질문 등록 → Apps Script → Google Sheets `QNA` 시트 저장
 메인 페이지 방문 → Apps Script → Google Sheets `count` 시트 갱신
 산성비 게임 종료 후 랭킹 등록 → Apps Script → Google Sheets `사회 산성비 랭킹` 또는 `역사 산성비 랭킹` 시트 저장
-모든 학생/선생님이 같은 질문 목록, 방문자 수, 산성비 랭킹 확인
+역사 추리왕 종료 후 랭킹 등록 → Apps Script → Google Sheets `역사 추리왕 랭킹` 시트 저장
+모든 학생/선생님이 같은 질문 목록, 방문자 수, 산성비 랭킹, 역사 추리왕 랭킹 확인
 관리자 답변 등록 → 학생이 답변 확인
 ```
 
@@ -133,6 +141,7 @@ window.QNA_CONFIG = {
 - 방문자 카운터 숫자는 Google Sheets 응답 값만 표시하고, 브라우저에는 중복 계수 방지용 날짜만 저장합니다.
 - 예전 `key/value` 구조나 방문 1회당 1행 구조의 `count` 시트가 남아 있으면 Apps Script가 기존 누적값을 날짜별 `date/count` 구조로 합산 정리합니다.
 - 산성비 랭킹은 Google Sheets의 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트에 각각 저장되며 홈페이지에는 상위 10개 기록이 표시됩니다.
+- 역사 추리왕 랭킹은 Google Sheets의 `역사 추리왕 랭킹` 시트에 저장되며 게임 안에는 상위 10개 기록이 표시됩니다.
 - 같은 브라우저/기기에서 같은 날 새로고침하거나 다시 방문해도 중복 카운트되지 않도록 `localStorage`에 오늘 계수 여부만 저장합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.
 - 관리자 비밀번호는 홈페이지 JS에 넣지 않고 Apps Script 스크립트 속성 `QNA_ADMIN_PASSWORD`에서 검증합니다.
@@ -152,9 +161,10 @@ window.QNA_CONFIG = {
 
 ```js
 const SHEET_NAME = 'QNA';
-const COUNT_SHEET_NAME = 'count';
+const COUNTER_SHEET_NAME = 'count';
 const ACID_RANKING_SHEET_NAMES = {
   social: '사회 산성비 랭킹',
   history: '역사 산성비 랭킹'
 };
+const HISTORY_CAUSE_RANKING_SHEET_NAME = '역사 추리왕 랭킹';
 ```

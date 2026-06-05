@@ -1,4 +1,4 @@
-const QNA_API_URL = "https://script.google.com/macros/s/AKfycbwRF2vGc3fKXUjQIo8q_Dq9Vl6T4OqbZLaIOQIm1ndDDvmGOmixBmQQ8AGPsb-7Yqx6/exec";
+const QNA_API_URL = "https://script.google.com/macros/s/AKfycby65V5roLWBsSNO5kMmETLFybLpWp6eEVv-wOLk8GFs_LcP9x0pKeiJiLUDcq8nwGfm/exec";
 
 window.QNA_CONFIG = {
   apiUrl: QNA_API_URL,

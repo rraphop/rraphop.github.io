@@ -41,6 +41,19 @@ const ACID_RANKING_HEADERS = [
   'survivalMs'
 ];
 const ACID_RANKING_LIMIT = 10;
+const HISTORY_CAUSE_RANKING_SHEET_NAME = '역사 추리왕 랭킹';
+const HISTORY_CAUSE_RANKING_HEADERS = [
+  'id',
+  'createdAt',
+  'nickname',
+  'score',
+  'area',
+  'correctCount',
+  'answeredCount',
+  'maxCombo',
+  'date'
+];
+const HISTORY_CAUSE_RANKING_LIMIT = 10;
 
 function doGet(e) {
   return handleRequest_(e);
@@ -134,6 +147,12 @@ function handleRequest_(e) {
         break;
       case 'acidRankingCreate':
         result = createAcidRanking_(params);
+        break;
+      case 'historyCauseRankings':
+        result = listHistoryCauseRankings_();
+        break;
+      case 'historyCauseRankingCreate':
+        result = createHistoryCauseRanking_(params);
         break;
       case 'setupSheets':
         result = setupSheets_();
@@ -813,6 +832,7 @@ function setupSheets_() {
   const monthlySheet = getMonthlySheet_();
   const socialRankingSheet = getAcidRankingSheet_('social');
   const historyRankingSheet = getAcidRankingSheet_('history');
+  const historyCauseRankingSheet = getHistoryCauseRankingSheet_();
   return {
     sheets: [
       qnaSheet.getName(),
@@ -820,7 +840,8 @@ function setupSheets_() {
       dailySheet.getName(),
       monthlySheet.getName(),
       socialRankingSheet.getName(),
-      historyRankingSheet.getName()
+      historyRankingSheet.getName(),
+      historyCauseRankingSheet.getName()
     ]
   };
 }
@@ -852,6 +873,41 @@ function createAcidRanking_(params) {
       entry: publicAcidRankingEntry_(entry),
       rank: rankIndex >= 0 && rankIndex < ACID_RANKING_LIMIT ? rankIndex + 1 : null,
       rankings: getAcidRankingGroups_()
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function listHistoryCauseRankings_() {
+  return { rankings: listHistoryCauseRankingEntries_() };
+}
+
+function createHistoryCauseRanking_(params) {
+  const now = new Date().toISOString();
+  const entry = {
+    id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    createdAt: now,
+    nickname: sanitizePlayerName_(params.nickname || params.name),
+    score: normalizeSignedRankingNumber_(params.score, 0),
+    area: normalizeHistoryCauseArea_(params.area),
+    correctCount: normalizeRankingNumber_(params.correctCount, 0),
+    answeredCount: normalizeRankingNumber_(params.answeredCount, 0),
+    maxCombo: normalizeRankingNumber_(params.maxCombo, 0),
+    date: String(params.date || Utilities.formatDate(new Date(), COUNT_TIMEZONE, 'yyyy-MM-dd'))
+  };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = getHistoryCauseRankingSheet_();
+    sheet.appendRow(HISTORY_CAUSE_RANKING_HEADERS.map((header) => entry[header] ?? ''));
+    const entries = listHistoryCauseRankingEntries_();
+    const rankIndex = entries.findIndex((item) => item.id === entry.id);
+    return {
+      entry: publicHistoryCauseRankingEntry_(entry),
+      rank: rankIndex >= 0 && rankIndex < HISTORY_CAUSE_RANKING_LIMIT ? rankIndex + 1 : null,
+      rankings: entries
     };
   } finally {
     lock.releaseLock();
@@ -891,6 +947,13 @@ function getAcidRankingSheet_(group) {
   const sheetName = ACID_RANKING_SHEET_NAMES[group];
   const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
   ensureHeaders_(sheet, ACID_RANKING_HEADERS);
+  return sheet;
+}
+
+function getHistoryCauseRankingSheet_() {
+  const spreadsheet = getSpreadsheet_();
+  const sheet = spreadsheet.getSheetByName(HISTORY_CAUSE_RANKING_SHEET_NAME) || spreadsheet.insertSheet(HISTORY_CAUSE_RANKING_SHEET_NAME);
+  ensureHeaders_(sheet, HISTORY_CAUSE_RANKING_HEADERS);
   return sheet;
 }
 
@@ -1021,6 +1084,57 @@ function sortAcidRankingEntries_(entries) {
   ));
 }
 
+function listHistoryCauseRankingEntries_() {
+  const sheet = getHistoryCauseRankingSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
+
+  const map = getHeaderMap_(sheet);
+  return sortHistoryCauseRankingEntries_(values
+    .slice(1)
+    .map((row) => rowToHistoryCauseRankingEntry_(row, map))
+    .filter((entry) => entry.id))
+    .slice(0, HISTORY_CAUSE_RANKING_LIMIT);
+}
+
+function rowToHistoryCauseRankingEntry_(row, map) {
+  return publicHistoryCauseRankingEntry_({
+    id: String(row[map.id] || ''),
+    createdAt: row[map.createdAt] || '',
+    nickname: row[map.nickname] || '익명',
+    score: row[map.score],
+    area: row[map.area] || '전체',
+    correctCount: row[map.correctCount],
+    answeredCount: row[map.answeredCount],
+    maxCombo: row[map.maxCombo],
+    date: row[map.date] || ''
+  });
+}
+
+function publicHistoryCauseRankingEntry_(entry) {
+  return {
+    id: String(entry.id || ''),
+    createdAt: entry.createdAt || '',
+    nickname: sanitizePlayerName_(entry.nickname || entry.name),
+    score: normalizeSignedRankingNumber_(entry.score, 0),
+    area: normalizeHistoryCauseArea_(entry.area),
+    correctCount: normalizeRankingNumber_(entry.correctCount, 0),
+    answeredCount: normalizeRankingNumber_(entry.answeredCount, 0),
+    maxCombo: normalizeRankingNumber_(entry.maxCombo, 0),
+    date: String(entry.date || '')
+  };
+}
+
+function sortHistoryCauseRankingEntries_(entries) {
+  return entries.slice().sort((a, b) => (
+    Number(b.score || 0) - Number(a.score || 0)
+    || Number(b.correctCount || 0) - Number(a.correctCount || 0)
+    || Number(b.answeredCount || 0) - Number(a.answeredCount || 0)
+    || Number(b.maxCombo || 0) - Number(a.maxCombo || 0)
+    || getRankingCreatedAtValue_(a.createdAt) - getRankingCreatedAtValue_(b.createdAt)
+  ));
+}
+
 function getRankingCreatedAtValue_(value) {
   const numeric = Number(value);
   if (Number.isFinite(numeric) && numeric > 0) return numeric;
@@ -1039,11 +1153,24 @@ function sanitizePlayerName_(value) {
   return (name || '익명').slice(0, 12);
 }
 
+function normalizeHistoryCauseArea_(value) {
+  const area = String(value || '').trim();
+  if (area === '한국사' || area === '세계사' || area === '전체') return area;
+  return '전체';
+}
+
 function normalizeRankingNumber_(value, fallback) {
   if (value == null || String(value).trim() === '') return fallback;
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.max(fallback, Math.round(number));
+}
+
+function normalizeSignedRankingNumber_(value, fallback) {
+  if (value == null || String(value).trim() === '') return fallback;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.round(number);
 }
 
 function rowToQuestion_(row, map, includePrivateFields) {

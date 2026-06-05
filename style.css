@@ -493,7 +493,7 @@ details,
 
 .game-picker {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
 }
 
@@ -506,6 +506,7 @@ details,
   text-align: left;
   cursor: pointer;
   font: inherit;
+  align-content: start;
 }
 
 .game-choice strong {

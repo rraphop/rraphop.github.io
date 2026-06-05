@@ -799,6 +799,14 @@ function showGamePanel(gameName, updateHash = false) {
   }
 }
 
+function showGameMenu(updateHash = false) {
+  gameChoices.forEach((button) => button.classList.remove("active"));
+  gamePanels.forEach((panel) => panel.classList.remove("active"));
+  if (updateHash) {
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
+}
+
 if (gameChoices.length > 0) {
   gameChoices.forEach((button) => {
     button.addEventListener("click", () => showGamePanel(button.dataset.gameChoice, true));
@@ -914,8 +922,10 @@ function moveTimelineItem(index, direction) {
 }
 
 if (timelineList) {
-  ensureTimelineRound();
-  window.addEventListener("pageshow", ensureTimelineRound);
+  window.addEventListener("pageshow", () => {
+    const timelinePanel = document.querySelector('[data-game-panel="timeline"]');
+    if (timelinePanel?.classList.contains("active")) ensureTimelineRound();
+  });
 
   timelineModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -1583,7 +1593,7 @@ function initAcidRainGame(root) {
 
   function exitAcidRainGame() {
     resetAcidGame();
-    showGamePanel("timeline", true);
+    showGameMenu(true);
     document.querySelector(".game-picker")?.scrollIntoView({ block: "start" });
   }
 
