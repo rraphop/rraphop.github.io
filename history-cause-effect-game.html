@@ -668,25 +668,15 @@
       font-weight: 900;
     }
 
-    .ranking-entry {
-      display: grid;
-      grid-template-columns: minmax(180px, 1fr) auto;
-      gap: 10px;
-      align-items: end;
-      padding: 16px;
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-    }
-
-    .ranking-entry label {
-      grid-column: 1 / -1;
-      color: #30414a;
+    .ranking-save-message {
+      min-height: 28px;
+      margin: 0;
+      color: var(--forest-dark);
       font-weight: 900;
     }
 
-    .ranking-entry input {
-      min-width: 0;
+    .ranking-save-message.error {
+      color: var(--rose);
     }
 
     .ranking-table-wrap {
@@ -924,8 +914,7 @@
       }
 
       .button-row,
-      .game-toolbar,
-      .ranking-entry {
+      .game-toolbar {
         align-items: stretch;
         flex-direction: column;
       }
@@ -944,9 +933,6 @@
         align-self: flex-start;
       }
 
-      .ranking-entry {
-        display: flex;
-      }
     }
   </style>
 </head>
@@ -1106,16 +1092,11 @@
           <div class="result-stat"><span>풀이 수</span><strong id="finalAnswered">0</strong></div>
         </div>
         <p class="feedback-copy" id="finalFeedback"></p>
-        <form class="ranking-entry" id="rankingForm">
-          <label for="rankingNameInput">랭킹 이름</label>
-          <input id="rankingNameInput" type="text" maxlength="12" autocomplete="name" placeholder="랭킹에 표시할 이름">
-          <button class="button primary" type="submit" id="saveRankingButton">랭킹 등록</button>
-        </form>
-        <p id="rankingSavedMessage"></p>
+        <p class="ranking-save-message" id="rankingSavedMessage" aria-live="polite"></p>
         <div class="button-row">
-          <button class="button primary" type="button" id="retryButton">다시 하기</button>
-          <button class="button secondary" type="button" id="homeButton">시작 화면</button>
-          <button class="button secondary" type="button" id="resultRankingButton">랭킹 확인</button>
+          <button class="button primary" type="button" id="retryButton">다시하기</button>
+          <button class="button secondary" type="button" id="homeButton">시작화면</button>
+          <button class="button primary" type="button" id="resultRankingButton">랭킹 확인</button>
         </div>
       </div>
     </section>
@@ -3820,9 +3801,6 @@
     const finalCombo = document.querySelector("#finalCombo");
     const finalAnswered = document.querySelector("#finalAnswered");
     const finalFeedback = document.querySelector("#finalFeedback");
-    const rankingForm = document.querySelector("#rankingForm");
-    const rankingNameInput = document.querySelector("#rankingNameInput");
-    const saveRankingButton = document.querySelector("#saveRankingButton");
     const rankingSavedMessage = document.querySelector("#rankingSavedMessage");
     const retryButton = document.querySelector("#retryButton");
     const homeButton = document.querySelector("#homeButton");
@@ -3835,7 +3813,7 @@
     const rankingCloseButton = document.querySelector("#rankingCloseButton");
 
     let selectedArea = "전체";
-    let latestResultForRanking = null;
+    let rankingSaveSequence = 0;
     const lastChoiceOrderByQuestion = {};
 
     const gameState = {
@@ -3868,7 +3846,7 @@
       });
 
       startButton.addEventListener("click", startGame);
-      rankingButton.addEventListener("click", openRankingModal);
+      rankingButton.addEventListener("click", () => openRankingModal());
       submitButton.addEventListener("click", submitAnswer);
       nextButton.addEventListener("click", nextQuestion);
       exitButton.addEventListener("click", () => {
@@ -3876,10 +3854,9 @@
       });
       retryButton.addEventListener("click", startGame);
       homeButton.addEventListener("click", () => showScreen("start"));
-      resultRankingButton.addEventListener("click", openRankingModal);
+      resultRankingButton.addEventListener("click", () => openRankingModal());
       rankingModalBackdrop.addEventListener("click", closeRankingModal);
       rankingCloseButton.addEventListener("click", closeRankingModal);
-      rankingForm.addEventListener("submit", handleRankingSubmit);
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !rankingModal.hidden) {
@@ -3931,7 +3908,8 @@
       gameState.maxCombo = 0;
       gameState.hasSubmitted = false;
       gameState.isGameOver = false;
-      latestResultForRanking = null;
+      rankingSaveSequence += 1;
+      setRankingSaveMessage("");
 
       showScreen("game", { scrollTop: false });
       loadQuestion();
@@ -4073,7 +4051,7 @@
       const scoreBreakdown = formatScoreBreakdown(scoreInfo);
       let stateClass = "wrong";
       let headline = "원인과 결과가 모두 다릅니다.";
-      let guidance = "게임이 종료됩니다. 결과 화면에서 랭킹을 등록할 수 있습니다.";
+      let guidance = "게임이 종료됩니다. 시작할 때 입력한 닉네임으로 랭킹이 자동 등록됩니다.";
 
       if (isCauseCorrect && isResultCorrect) {
         stateClass = "correct";
@@ -4116,7 +4094,7 @@
       finalAnswered.textContent = gameState.answeredCount.toLocaleString("ko-KR");
       finalFeedback.textContent = getFinalFeedback(gameState.score);
 
-      latestResultForRanking = {
+      const result = {
         nickname: gameState.nickname,
         score: gameState.score,
         area: gameState.area,
@@ -4125,54 +4103,35 @@
         maxCombo: gameState.maxCombo
       };
 
-      rankingNameInput.value = gameState.nickname;
-      rankingNameInput.disabled = false;
-      saveRankingButton.disabled = false;
-      rankingSavedMessage.textContent = "게임이 끝났습니다. 랭킹 이름을 확인한 뒤 등록하세요.";
       showScreen("result");
+      autoSaveRankingRecord(result);
     }
 
-    async function handleRankingSubmit(event) {
-      event.preventDefault();
-
-      if (!latestResultForRanking) {
-        rankingSavedMessage.textContent = "저장할 게임 결과가 없습니다.";
-        return;
-      }
-
-      const rankingName = rankingNameInput.value.trim();
-      if (!rankingName) {
-        rankingSavedMessage.textContent = "랭킹에 표시할 이름을 입력하세요.";
-        rankingNameInput.focus();
-        return;
-      }
-
-      const result = {
-        ...latestResultForRanking,
-        nickname: rankingName
-      };
-
-      rankingNameInput.disabled = true;
-      saveRankingButton.disabled = true;
-      rankingSavedMessage.textContent = "랭킹을 등록하는 중입니다.";
+    async function autoSaveRankingRecord(result) {
+      const sequence = ++rankingSaveSequence;
+      setRankingSaveMessage(`${result.nickname} 님의 기록을 랭킹에 자동 등록하는 중입니다.`);
 
       try {
         const saveResult = await saveRankingRecord(result);
-        rankingSavedMessage.textContent = saveResult.message;
-        latestResultForRanking = null;
-        openRankingModal(saveResult.rankings);
+        if (sequence !== rankingSaveSequence) return;
+        setRankingSaveMessage(saveResult.message);
       } catch (error) {
-        rankingNameInput.disabled = false;
-        saveRankingButton.disabled = false;
-        rankingSavedMessage.textContent = error.message || "랭킹 등록에 실패했습니다.";
+        if (sequence !== rankingSaveSequence) return;
+        setRankingSaveMessage(error.message || "랭킹 자동 등록에 실패했습니다.", "error");
       }
+    }
+
+    function setRankingSaveMessage(message, type = "info") {
+      if (!rankingSavedMessage) return;
+      rankingSavedMessage.textContent = message;
+      rankingSavedMessage.classList.toggle("error", type === "error");
     }
 
     async function saveRankingRecord(result) {
       if (isRankingApiConfigured()) {
         const payload = await saveRankingData(result);
         return {
-          message: "랭킹에 등록했습니다.",
+          message: "랭킹에 자동 등록했습니다.",
           rankings: payload.rankings
         };
       }
@@ -4183,7 +4142,7 @@
       }
 
       return {
-        message: "데이터 연결을 사용할 수 없어 임시 브라우저 랭킹에 등록했습니다.",
+        message: "데이터 연결을 사용할 수 없어 임시 브라우저 랭킹에 자동 등록했습니다.",
         rankings: getRankings()
       };
     }
@@ -4321,8 +4280,9 @@
     }
 
     function openRankingModal(rankings = null) {
+      const initialRankings = typeof Event !== "undefined" && rankings instanceof Event ? null : rankings;
       rankingModal.hidden = false;
-      renderRanking(rankings);
+      renderRanking(initialRankings);
       window.requestAnimationFrame(() => {
         rankingModalPanel.focus();
       });
