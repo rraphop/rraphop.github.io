@@ -118,10 +118,10 @@ function shuffle(items) {
 const visitorCounter = document.querySelector("#visitorCounter");
 const visitorCacheKey = "socialHistoryVisitorCountCacheV3";
 const visitorCountedDateKey = "socialHistoryVisitorCountedDateV1";
-const sheetApiUrl = window.QNA_CONFIG?.apiUrl
+const dataApiUrl = window.QNA_CONFIG?.apiUrl
   || window.QNA_API_URL
   || "";
-const sheetRequestTimeout = Number(window.QNA_CONFIG?.timeoutMs) || 15000;
+const dataRequestTimeout = Number(window.QNA_CONFIG?.timeoutMs) || 15000;
 const visitorCountBaseSize = 1.16;
 const visitorCountMinSize = 0.62;
 
@@ -138,24 +138,29 @@ function getVisitorDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function isSheetsApiConfigured() {
-  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(sheetApiUrl);
+function isDataApiConfigured() {
+  try {
+    const url = new URL(dataApiUrl);
+    return url.protocol === "https:" && url.pathname.endsWith("/exec");
+  } catch {
+    return false;
+  }
 }
 
-function sheetsApiRequest(action, params = {}, options = {}) {
+function dataApiRequest(action, params = {}, options = {}) {
   return new Promise((resolve, reject) => {
-    if (!isSheetsApiConfigured()) {
-      reject(new Error(options.notConfiguredMessage || "Apps Script 웹앱 URL을 설정하세요."));
+    if (!isDataApiConfigured()) {
+      reject(new Error(options.notConfiguredMessage || "데이터 연결 주소를 설정하세요."));
       return;
     }
 
-    const callbackPrefix = options.callbackPrefix || "__sheetsCallback";
+    const callbackPrefix = options.callbackPrefix || "__dataCallback";
     const callbackName = `${callbackPrefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement("script");
     const timeoutId = window.setTimeout(() => {
       cleanup();
       reject(new Error(options.timeoutMessage || "응답 시간이 초과되었습니다."));
-    }, sheetRequestTimeout);
+    }, dataRequestTimeout);
 
     function cleanup() {
       window.clearTimeout(timeoutId);
@@ -168,11 +173,11 @@ function sheetsApiRequest(action, params = {}, options = {}) {
       if (payload?.ok) {
         resolve(payload);
       } else {
-        reject(new Error(payload?.message || options.defaultErrorMessage || "Google Sheets 요청을 처리하지 못했습니다."));
+        reject(new Error(payload?.message || options.defaultErrorMessage || "데이터 요청을 처리하지 못했습니다."));
       }
     };
 
-    const url = new URL(sheetApiUrl);
+    const url = new URL(dataApiUrl);
     url.searchParams.set("callback", callbackName);
     url.searchParams.set("action", action);
     Object.entries(params).forEach(([key, value]) => {
@@ -182,7 +187,7 @@ function sheetsApiRequest(action, params = {}, options = {}) {
     script.async = true;
     script.onerror = () => {
       cleanup();
-      reject(new Error(options.connectionErrorMessage || "Google Sheets에 연결하지 못했습니다."));
+      reject(new Error(options.connectionErrorMessage || "데이터에 연결하지 못했습니다."));
     };
     script.src = url.toString();
     document.head.appendChild(script);
@@ -193,7 +198,7 @@ function clearCachedVisitorCounter() {
   try {
     localStorage.removeItem(visitorCacheKey);
   } catch {
-    // 방문자 수의 기준 데이터는 Google Sheets에서만 읽습니다.
+    // 방문자 수의 기준 데이터는 데이터 저장소에서만 읽습니다.
   }
 }
 
@@ -214,9 +219,9 @@ function markVisitorCounted(dateKey) {
 }
 
 function visitorApiRequest(action, params = {}) {
-  return sheetsApiRequest(action, params, {
+  return dataApiRequest(action, params, {
     callbackPrefix: "__visitorCallback",
-    notConfiguredMessage: "Apps Script 웹앱 URL을 설정하세요.",
+    notConfiguredMessage: "데이터 연결 주소를 설정하세요.",
     timeoutMessage: "방문자 카운터 응답 시간이 초과되었습니다.",
     defaultErrorMessage: "방문자 카운터 요청을 처리하지 못했습니다.",
     connectionErrorMessage: "방문자 카운터에 연결하지 못했습니다."
@@ -1243,7 +1248,7 @@ function initAcidRainGame(root) {
     try {
       localStorage.setItem(rankingStorageKey, JSON.stringify(normalizeAcidRankings(rankings)));
     } catch {
-      // 기준 랭킹 저장은 Google Sheets에서 처리합니다.
+      // 기준 랭킹 저장은 데이터 저장소에서 처리합니다.
     }
   }
 
@@ -1302,8 +1307,8 @@ function initAcidRainGame(root) {
     const requestId = acidRankingLoadId + 1;
     acidRankingLoadId = requestId;
 
-    if (!isSheetsApiConfigured()) {
-      acidRankingStatus = "Google Sheets 웹앱 URL을 설정하면 공유 랭킹이 표시됩니다.";
+    if (!isDataApiConfigured()) {
+      acidRankingStatus = "데이터 연결을 설정하면 공유 랭킹이 표시됩니다.";
       renderAcidRankings();
       return;
     }
@@ -1312,7 +1317,7 @@ function initAcidRainGame(root) {
     renderAcidRankings();
 
     try {
-      const payload = await sheetsApiRequest("acidRankings", {}, {
+      const payload = await dataApiRequest("acidRankings", {}, {
         callbackPrefix: "__acidRankingCallback",
         timeoutMessage: "산성비 랭킹 응답 시간이 초과되었습니다.",
         defaultErrorMessage: "산성비 랭킹 요청을 처리하지 못했습니다.",
@@ -1333,11 +1338,11 @@ function initAcidRainGame(root) {
 
   async function saveAcidRanking(name) {
     if (acidState.rankingSaved) return null;
-    if (!isSheetsApiConfigured()) {
-      throw new Error("Google Sheets 웹앱 URL을 설정하세요.");
+    if (!isDataApiConfigured()) {
+      throw new Error("랭킹 데이터 연결을 설정하세요.");
     }
 
-    const payload = await sheetsApiRequest("acidRankingCreate", {
+    const payload = await dataApiRequest("acidRankingCreate", {
       group: currentTermGroup,
       name: getPlayerName(name).slice(0, 12),
       score: acidState.score,
@@ -1704,7 +1709,12 @@ let qnaQuestions = [];
 let qnaBusy = false;
 
 function isQnaApiConfigured() {
-  return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(qnaApiUrl);
+  try {
+    const url = new URL(qnaApiUrl);
+    return url.protocol === "https:" && url.pathname.endsWith("/exec");
+  } catch {
+    return false;
+  }
 }
 
 function normalizeQnaBoolean(value) {
@@ -1728,7 +1738,7 @@ function normalizeRemoteQuestion(item) {
 function qnaApiRequest(action, params = {}) {
   return new Promise((resolve, reject) => {
     if (!isQnaApiConfigured()) {
-      reject(new Error("qna-config.js에 Apps Script 웹앱 URL을 설정하세요."));
+      reject(new Error("질문 데이터 연결이 아직 설정되지 않았습니다."));
       return;
     }
 
@@ -1978,7 +1988,7 @@ async function refreshQuestions(options = {}) {
   const { keepActive = true } = options;
   if (!isQnaApiConfigured()) {
     qnaQuestions = [];
-    renderQuestions("qna-config.js에 Apps Script 웹앱 URL을 설정하면 공개 질문 목록을 불러옵니다.");
+    renderQuestions("질문 데이터 연결을 설정하면 공개 질문 목록을 불러옵니다.");
     return;
   }
 
@@ -2051,7 +2061,7 @@ if (qnaForm && questionBoard) {
 
     event.preventDefault();
     if (!isQnaApiConfigured()) {
-      setQnaFormMessage("qna-config.js에 Apps Script 웹앱 URL을 설정하세요.", "error");
+      setQnaFormMessage("질문 데이터 연결이 아직 설정되지 않았습니다.", "error");
       return;
     }
 
@@ -2103,7 +2113,7 @@ if (qnaForm && questionBoard) {
   qnaForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!isQnaApiConfigured()) {
-      setQnaFormMessage("qna-config.js에 Apps Script 웹앱 URL을 설정하세요.", "error");
+      setQnaFormMessage("질문 데이터 연결이 아직 설정되지 않았습니다.", "error");
       return;
     }
 

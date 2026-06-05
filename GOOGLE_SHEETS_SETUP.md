@@ -49,7 +49,7 @@ id, createdAt, name, score, level, survivalMs
 자동 생성되는 `역사 추리왕 랭킹` 시트 헤더:
 
 ```text
-id, createdAt, nickname, score, area, correctCount, answeredCount, maxCombo, date
+id, createdAt, nickname, score, area, correctCount, answeredCount, maxCombo
 ```
 
 ## 2. Apps Script 붙여넣기
@@ -141,7 +141,7 @@ window.QNA_CONFIG = {
 - 방문자 카운터 숫자는 Google Sheets 응답 값만 표시하고, 브라우저에는 중복 계수 방지용 날짜만 저장합니다.
 - 예전 `key/value` 구조나 방문 1회당 1행 구조의 `count` 시트가 남아 있으면 Apps Script가 기존 누적값을 날짜별 `date/count` 구조로 합산 정리합니다.
 - 산성비 랭킹은 Google Sheets의 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트에 각각 저장되며 홈페이지에는 상위 10개 기록이 표시됩니다.
-- 역사 추리왕 랭킹은 Google Sheets의 `역사 추리왕 랭킹` 시트에 저장되며 게임 안에는 상위 10개 기록이 표시됩니다.
+- 역사 추리왕 랭킹은 Google Sheets의 `역사 추리왕 랭킹` 시트에 저장되며 게임 안에는 전체, 한국사, 세계사 상위 10개 기록이 한 번에 표시됩니다.
 - 같은 브라우저/기기에서 같은 날 새로고침하거나 다시 방문해도 중복 카운트되지 않도록 `localStorage`에 오늘 계수 여부만 저장합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.
 - 관리자 비밀번호는 홈페이지 JS에 넣지 않고 Apps Script 스크립트 속성 `QNA_ADMIN_PASSWORD`에서 검증합니다.

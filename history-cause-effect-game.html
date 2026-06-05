@@ -732,6 +732,103 @@
       font-weight: 800;
     }
 
+    .ranking-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .ranking-modal[hidden] {
+      display: none;
+    }
+
+    .ranking-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      border: 0;
+      padding: 0;
+      background: rgba(30, 37, 43, 0.54);
+      cursor: pointer;
+    }
+
+    .ranking-modal-panel {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 16px;
+      width: min(1120px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(30, 37, 43, 0.28);
+      outline: none;
+    }
+
+    .ranking-modal-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .ranking-modal-head h2 {
+      margin: 0;
+      font-size: clamp(1.45rem, 2.6vw, 2rem);
+      line-height: 1.2;
+    }
+
+    .ranking-close-button {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+      padding: 0;
+      border-radius: var(--radius);
+      font-size: 1.2rem;
+    }
+
+    .ranking-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .ranking-board {
+      min-width: 0;
+    }
+
+    .ranking-board h3 {
+      margin: 0 0 8px;
+      color: var(--forest-dark);
+      font-size: 1rem;
+    }
+
+    .ranking-board table {
+      min-width: 0;
+      background: #fff;
+      font-size: 0.9rem;
+    }
+
+    .ranking-board th,
+    .ranking-board td {
+      padding: 9px;
+    }
+
+    .ranking-board td:nth-child(2) {
+      font-weight: 900;
+    }
+
+    .ranking-modal-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
     .source-note {
       margin: 20px 0 0;
       color: var(--muted);
@@ -773,7 +870,8 @@
       .app-hero,
       .setup-panel,
       .question-layout,
-      .choice-columns {
+      .choice-columns,
+      .ranking-grid {
         grid-template-columns: 1fr;
       }
 
@@ -813,7 +911,8 @@
       .setup-panel,
       .game-panel,
       .result-panel,
-      .ranking-panel {
+      .ranking-panel,
+      .ranking-modal-panel {
         padding: 14px;
       }
 
@@ -838,6 +937,11 @@
 
       .feedback-actions .button {
         width: auto;
+      }
+
+      .ranking-close-button {
+        width: 40px;
+        align-self: flex-start;
       }
 
       .ranking-entry {
@@ -1016,19 +1120,21 @@
       </div>
     </section>
 
-    <section class="screen" id="rankingScreen" data-screen="ranking">
-      <div class="panel ranking-panel">
+  </main>
+
+  <div class="ranking-modal" id="rankingModal" role="dialog" aria-modal="true" aria-labelledby="rankingModalTitle" hidden>
+    <button class="ranking-modal-backdrop" type="button" id="rankingModalBackdrop" aria-label="랭킹 닫기"></button>
+    <section class="ranking-modal-panel" tabindex="-1">
+      <div class="ranking-modal-head">
         <div>
           <p class="eyebrow">Ranking</p>
-          <h2>상위 10명 랭킹</h2>
+          <h2 id="rankingModalTitle">역사 추리왕 랭킹</h2>
         </div>
-        <div id="rankingContent"></div>
-        <div class="button-row">
-          <button class="button secondary" type="button" id="rankingHomeButton">시작 화면</button>
-        </div>
+        <button class="button secondary ranking-close-button" type="button" id="rankingCloseButton" aria-label="랭킹 닫기">×</button>
       </div>
+      <div id="rankingContent"></div>
     </section>
-  </main>
+  </div>
 
   <footer class="site-footer">
     <p>사회·역사 배움터 | 중학교 수업 보조 학습용</p>
@@ -3684,8 +3790,7 @@
     const screens = {
       start: document.querySelector("#startScreen"),
       game: document.querySelector("#gameScreen"),
-      result: document.querySelector("#resultScreen"),
-      ranking: document.querySelector("#rankingScreen")
+      result: document.querySelector("#resultScreen")
     };
 
     const nicknameInput = document.querySelector("#nicknameInput");
@@ -3724,7 +3829,10 @@
     const resultRankingButton = document.querySelector("#resultRankingButton");
 
     const rankingContent = document.querySelector("#rankingContent");
-    const rankingHomeButton = document.querySelector("#rankingHomeButton");
+    const rankingModal = document.querySelector("#rankingModal");
+    const rankingModalPanel = rankingModal.querySelector(".ranking-modal-panel");
+    const rankingModalBackdrop = document.querySelector("#rankingModalBackdrop");
+    const rankingCloseButton = document.querySelector("#rankingCloseButton");
 
     let selectedArea = "전체";
     let latestResultForRanking = null;
@@ -3760,10 +3868,7 @@
       });
 
       startButton.addEventListener("click", startGame);
-      rankingButton.addEventListener("click", () => {
-        showScreen("ranking");
-        renderRanking();
-      });
+      rankingButton.addEventListener("click", openRankingModal);
       submitButton.addEventListener("click", submitAnswer);
       nextButton.addEventListener("click", nextQuestion);
       exitButton.addEventListener("click", () => {
@@ -3771,12 +3876,16 @@
       });
       retryButton.addEventListener("click", startGame);
       homeButton.addEventListener("click", () => showScreen("start"));
-      resultRankingButton.addEventListener("click", () => {
-        showScreen("ranking");
-        renderRanking();
-      });
-      rankingHomeButton.addEventListener("click", () => showScreen("start"));
+      resultRankingButton.addEventListener("click", openRankingModal);
+      rankingModalBackdrop.addEventListener("click", closeRankingModal);
+      rankingCloseButton.addEventListener("click", closeRankingModal);
       rankingForm.addEventListener("submit", handleRankingSubmit);
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !rankingModal.hidden) {
+          closeRankingModal();
+        }
+      });
 
       causeChoices.addEventListener("click", (event) => {
         const button = event.target.closest("[data-cause-index]");
@@ -4013,8 +4122,7 @@
         area: gameState.area,
         correctCount: gameState.correctCount,
         answeredCount: gameState.answeredCount,
-        maxCombo: gameState.maxCombo,
-        date: getKoreanDate()
+        maxCombo: gameState.maxCombo
       };
 
       rankingNameInput.value = gameState.nickname;
@@ -4041,8 +4149,7 @@
 
       const result = {
         ...latestResultForRanking,
-        nickname: rankingName,
-        date: getKoreanDate()
+        nickname: rankingName
       };
 
       rankingNameInput.disabled = true;
@@ -4053,6 +4160,7 @@
         const saveResult = await saveRankingRecord(result);
         rankingSavedMessage.textContent = saveResult.message;
         latestResultForRanking = null;
+        openRankingModal(saveResult.rankings);
       } catch (error) {
         rankingNameInput.disabled = false;
         saveRankingButton.disabled = false;
@@ -4062,8 +4170,11 @@
 
     async function saveRankingRecord(result) {
       if (isRankingApiConfigured()) {
-        await saveRankingGoogleSheets(result);
-        return { message: "랭킹에 등록했습니다." };
+        const payload = await saveRankingData(result);
+        return {
+          message: "랭킹에 등록했습니다.",
+          rankings: payload.rankings
+        };
       }
 
       const saved = saveRankingLocal(result);
@@ -4071,7 +4182,10 @@
         throw new Error("브라우저 저장소를 사용할 수 없어 랭킹 저장에 실패했습니다.");
       }
 
-      return { message: "Google Sheets 웹앱 URL이 없어 임시 브라우저 랭킹에 등록했습니다." };
+      return {
+        message: "데이터 연결을 사용할 수 없어 임시 브라우저 랭킹에 등록했습니다.",
+        rankings: getRankings()
+      };
     }
 
     function saveRankingLocal(result) {
@@ -4087,13 +4201,18 @@
     }
 
     function isRankingApiConfigured() {
-      return /^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(rankingApiUrl);
+      try {
+        const url = new URL(rankingApiUrl);
+        return url.protocol === "https:" && url.pathname.endsWith("/exec");
+      } catch {
+        return false;
+      }
     }
 
     function rankingApiRequest(action, params = {}) {
       return new Promise((resolve, reject) => {
         if (!isRankingApiConfigured()) {
-          reject(new Error("Google Sheets 웹앱 URL이 설정되지 않았습니다."));
+          reject(new Error("랭킹 데이터 연결이 설정되지 않았습니다."));
           return;
         }
 
@@ -4136,24 +4255,29 @@
       });
     }
 
-    async function saveRankingGoogleSheets(result) {
+    async function saveRankingData(result) {
       return rankingApiRequest("historyCauseRankingCreate", {
         nickname: result.nickname,
         score: result.score,
         area: result.area,
         correctCount: result.correctCount,
         answeredCount: result.answeredCount,
-        maxCombo: result.maxCombo,
-        date: result.date
+        maxCombo: result.maxCombo
       });
     }
 
-    async function fetchRankingGoogleSheets() {
+    async function fetchRankingData() {
       const payload = await rankingApiRequest("historyCauseRankings");
-      return normalizeRankingList(payload.rankings || payload.items || []);
+      return normalizeRankingGroups(payload.rankings || payload.items || []);
     }
 
     function normalizeRankingList(rankings) {
+      return normalizeRankingEntries(rankings)
+        .sort(sortRankingEntries)
+        .slice(0, 10);
+    }
+
+    function normalizeRankingEntries(rankings) {
       if (!Array.isArray(rankings)) return [];
       return rankings
         .map((item) => ({
@@ -4162,56 +4286,97 @@
           area: String(item.area || "전체"),
           correctCount: Number(item.correctCount) || 0,
           answeredCount: Number(item.answeredCount || item.questions || 0) || 0,
-          maxCombo: Number(item.maxCombo) || 0,
-          date: String(item.date || "")
+          maxCombo: Number(item.maxCombo) || 0
         }))
         .filter((item) => item.score || item.answeredCount || item.nickname);
     }
 
-    async function renderRanking() {
+    function normalizeRankingGroups(rankings) {
+      if (Array.isArray(rankings)) {
+        const normalized = normalizeRankingList(rankings);
+        return createRankingGroupsFromList(normalized);
+      }
+
+      return {
+        overall: normalizeRankingList(rankings?.overall || rankings?.all || rankings?.["전체"] || []),
+        korean: normalizeRankingList(rankings?.korean || rankings?.["한국사"] || []),
+        world: normalizeRankingList(rankings?.world || rankings?.["세계사"] || [])
+      };
+    }
+
+    function createRankingGroupsFromList(rankings) {
+      const normalized = normalizeRankingEntries(rankings).sort(sortRankingEntries);
+      return {
+        overall: normalized.slice(0, 10),
+        korean: normalized.filter((item) => item.area === "한국사").slice(0, 10),
+        world: normalized.filter((item) => item.area === "세계사").slice(0, 10)
+      };
+    }
+
+    function sortRankingEntries(a, b) {
+      return Number(b.score || 0) - Number(a.score || 0)
+        || Number(b.correctCount || 0) - Number(a.correctCount || 0)
+        || Number(b.answeredCount || 0) - Number(a.answeredCount || 0)
+        || Number(b.maxCombo || 0) - Number(a.maxCombo || 0);
+    }
+
+    function openRankingModal(rankings = null) {
+      rankingModal.hidden = false;
+      renderRanking(rankings);
+      window.requestAnimationFrame(() => {
+        rankingModalPanel.focus();
+      });
+    }
+
+    function closeRankingModal() {
+      rankingModal.hidden = true;
+    }
+
+    async function renderRanking(initialRankings = null) {
       rankingContent.innerHTML = `<div class="empty-state">랭킹을 불러오는 중입니다.</div>`;
 
-      let rankings = [];
+      let rankingGroups = normalizeRankingGroups(initialRankings || []);
       let note = "";
 
       try {
-        if (isRankingApiConfigured()) {
-          rankings = await fetchRankingGoogleSheets();
+        if (initialRankings) {
+          note = "랭킹 데이터 기준입니다.";
+        } else if (isRankingApiConfigured()) {
+          rankingGroups = await fetchRankingData();
           note = "랭킹 데이터 기준입니다.";
         } else {
-          rankings = getRankings();
-          note = "Google Sheets 웹앱 URL이 없어 임시 브라우저 랭킹을 표시합니다.";
+          rankingGroups = normalizeRankingGroups(getRankings());
+          note = "데이터 연결을 사용할 수 없어 임시 브라우저 랭킹을 표시합니다.";
         }
       } catch (error) {
-        rankings = getRankings();
+        rankingGroups = normalizeRankingGroups(getRankings());
         note = `랭킹을 불러오지 못해 임시 브라우저 랭킹을 표시합니다. ${error.message || ""}`.trim();
       }
 
-      rankings = normalizeRankingList(rankings)
-        .sort((a, b) => Number(b.score) - Number(a.score))
-        .slice(0, 10);
+      rankingContent.innerHTML = `
+        <div class="ranking-grid">
+          ${renderRankingBoard("전체", rankingGroups.overall)}
+          ${renderRankingBoard("한국사", rankingGroups.korean)}
+          ${renderRankingBoard("세계사", rankingGroups.world)}
+        </div>
+        <p class="ranking-modal-note">${escapeHTML(note)}</p>
+      `;
+    }
 
-      if (rankings.length === 0) {
-        rankingContent.innerHTML = `
-          <div class="empty-state">아직 등록된 랭킹이 없습니다.</div>
-          <p class="source-note">${escapeHTML(note)}</p>
-        `;
-        return;
-      }
-
-      const rows = rankings.map((item, index) => `
+    function renderRankingBoard(title, rankings) {
+      const rows = normalizeRankingList(rankings).map((item, index) => `
         <tr>
           <td>${index + 1}</td>
           <td>${escapeHTML(item.nickname)}</td>
           <td>${Number(item.score).toLocaleString("ko-KR")}</td>
           <td>${escapeHTML(item.area)}</td>
           <td>${Number(item.answeredCount || 0).toLocaleString("ko-KR")}</td>
-          <td>${escapeHTML(item.date)}</td>
         </tr>
-      `).join("");
+      `).join("") || '<tr><td colspan="5">아직 등록된 기록이 없습니다.</td></tr>';
 
-      rankingContent.innerHTML = `
-        <div class="ranking-table-wrap">
+      return `
+        <section class="ranking-board">
+          <h3>${title} 랭킹</h3>
           <table>
             <thead>
               <tr>
@@ -4220,13 +4385,11 @@
                 <th>점수</th>
                 <th>영역</th>
                 <th>풀이 수</th>
-                <th>날짜</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
-        </div>
-        <p class="source-note">${escapeHTML(note)}</p>
+        </section>
       `;
     }
 
@@ -4343,15 +4506,6 @@
       if (score >= 700) return "주요 사건의 원인과 결과를 잘 이해하고 있습니다.";
       if (score >= 500) return "기본 흐름은 이해하고 있으나 비슷한 사건을 구분하는 연습이 필요합니다.";
       return "사건의 이름보다 원인과 결과를 함께 연결해 복습해 보세요.";
-    }
-
-    function getKoreanDate() {
-      return new Intl.DateTimeFormat("sv-SE", {
-        timeZone: "Asia/Seoul",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit"
-      }).format(new Date());
     }
 
     function escapeHTML(value) {

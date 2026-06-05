@@ -50,8 +50,7 @@ const HISTORY_CAUSE_RANKING_HEADERS = [
   'area',
   'correctCount',
   'answeredCount',
-  'maxCombo',
-  'date'
+  'maxCombo'
 ];
 const HISTORY_CAUSE_RANKING_LIMIT = 10;
 
@@ -174,7 +173,7 @@ function handleRequest_(e) {
         break;
       case 'ping':
         result = setupSheets_();
-        result.message = 'QNA Apps Script is ready.';
+        result.message = 'QNA data API is ready.';
         break;
       default:
         throw new Error('알 수 없는 요청입니다.');
@@ -880,7 +879,7 @@ function createAcidRanking_(params) {
 }
 
 function listHistoryCauseRankings_() {
-  return { rankings: listHistoryCauseRankingEntries_() };
+  return { rankings: getHistoryCauseRankingGroups_() };
 }
 
 function createHistoryCauseRanking_(params) {
@@ -893,8 +892,7 @@ function createHistoryCauseRanking_(params) {
     area: normalizeHistoryCauseArea_(params.area),
     correctCount: normalizeRankingNumber_(params.correctCount, 0),
     answeredCount: normalizeRankingNumber_(params.answeredCount, 0),
-    maxCombo: normalizeRankingNumber_(params.maxCombo, 0),
-    date: String(params.date || Utilities.formatDate(new Date(), COUNT_TIMEZONE, 'yyyy-MM-dd'))
+    maxCombo: normalizeRankingNumber_(params.maxCombo, 0)
   };
 
   const lock = LockService.getScriptLock();
@@ -907,7 +905,7 @@ function createHistoryCauseRanking_(params) {
     return {
       entry: publicHistoryCauseRankingEntry_(entry),
       rank: rankIndex >= 0 && rankIndex < HISTORY_CAUSE_RANKING_LIMIT ? rankIndex + 1 : null,
-      rankings: entries
+      rankings: getHistoryCauseRankingGroups_()
     };
   } finally {
     lock.releaseLock();
@@ -954,6 +952,7 @@ function getHistoryCauseRankingSheet_() {
   const spreadsheet = getSpreadsheet_();
   const sheet = spreadsheet.getSheetByName(HISTORY_CAUSE_RANKING_SHEET_NAME) || spreadsheet.insertSheet(HISTORY_CAUSE_RANKING_SHEET_NAME);
   ensureHeaders_(sheet, HISTORY_CAUSE_RANKING_HEADERS);
+  removeHeaderColumn_(sheet, 'date');
   return sheet;
 }
 
@@ -965,7 +964,7 @@ function getSpreadsheet_() {
     : SpreadsheetApp.getActiveSpreadsheet();
 
   if (!spreadsheet) {
-    throw new Error('스프레드시트를 찾을 수 없습니다. QNA_SPREADSHEET_ID 스크립트 속성을 설정하세요.');
+    throw new Error('데이터 저장소를 찾을 수 없습니다. 데이터 연결 설정을 확인하세요.');
   }
 
   return spreadsheet;
@@ -989,6 +988,17 @@ function ensureHeaders_(sheet, headers = HEADERS) {
       sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header);
     }
   });
+}
+
+function removeHeaderColumn_(sheet, headerName) {
+  const lastColumn = sheet.getLastColumn();
+  if (lastColumn <= 0) return;
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  for (let index = headers.length - 1; index >= 0; index -= 1) {
+    if (String(headers[index] || '') === headerName) {
+      sheet.deleteColumn(index + 1);
+    }
+  }
 }
 
 function ensureCounterHeaders_(sheet) {
@@ -1093,8 +1103,16 @@ function listHistoryCauseRankingEntries_() {
   return sortHistoryCauseRankingEntries_(values
     .slice(1)
     .map((row) => rowToHistoryCauseRankingEntry_(row, map))
-    .filter((entry) => entry.id))
-    .slice(0, HISTORY_CAUSE_RANKING_LIMIT);
+    .filter((entry) => entry.id));
+}
+
+function getHistoryCauseRankingGroups_() {
+  const entries = listHistoryCauseRankingEntries_();
+  return {
+    overall: entries.slice(0, HISTORY_CAUSE_RANKING_LIMIT),
+    korean: entries.filter((entry) => entry.area === '한국사').slice(0, HISTORY_CAUSE_RANKING_LIMIT),
+    world: entries.filter((entry) => entry.area === '세계사').slice(0, HISTORY_CAUSE_RANKING_LIMIT)
+  };
 }
 
 function rowToHistoryCauseRankingEntry_(row, map) {
@@ -1106,8 +1124,7 @@ function rowToHistoryCauseRankingEntry_(row, map) {
     area: row[map.area] || '전체',
     correctCount: row[map.correctCount],
     answeredCount: row[map.answeredCount],
-    maxCombo: row[map.maxCombo],
-    date: row[map.date] || ''
+    maxCombo: row[map.maxCombo]
   });
 }
 
@@ -1120,8 +1137,7 @@ function publicHistoryCauseRankingEntry_(entry) {
     area: normalizeHistoryCauseArea_(entry.area),
     correctCount: normalizeRankingNumber_(entry.correctCount, 0),
     answeredCount: normalizeRankingNumber_(entry.answeredCount, 0),
-    maxCombo: normalizeRankingNumber_(entry.maxCombo, 0),
-    date: String(entry.date || '')
+    maxCombo: normalizeRankingNumber_(entry.maxCombo, 0)
   };
 }
 
@@ -1264,7 +1280,7 @@ function getCurrentMonthKey_() {
 function requireAdmin_(adminPassword) {
   const savedPassword = PropertiesService.getScriptProperties().getProperty('QNA_ADMIN_PASSWORD');
   if (!savedPassword) {
-    throw new Error('Apps Script 속성 QNA_ADMIN_PASSWORD를 먼저 설정하세요.');
+    throw new Error('관리자 비밀번호 설정을 먼저 확인하세요.');
   }
   if (String(adminPassword || '') !== savedPassword) {
     throw new Error('관리자 비밀번호가 맞지 않습니다.');
