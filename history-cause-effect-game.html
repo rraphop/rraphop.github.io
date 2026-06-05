@@ -4063,7 +4063,7 @@
     async function saveRankingRecord(result) {
       if (isRankingApiConfigured()) {
         await saveRankingGoogleSheets(result);
-        return { message: "Google Sheets 랭킹에 등록했습니다." };
+        return { message: "랭킹에 등록했습니다." };
       }
 
       const saved = saveRankingLocal(result);
@@ -4101,7 +4101,7 @@
         const script = document.createElement("script");
         const timeoutId = window.setTimeout(() => {
           cleanup();
-          reject(new Error("Google Sheets 랭킹 응답 시간이 초과되었습니다."));
+          reject(new Error("랭킹 데이터 응답 시간이 초과되었습니다."));
         }, rankingRequestTimeout);
 
         function cleanup() {
@@ -4115,7 +4115,7 @@
           if (payload?.ok) {
             resolve(payload);
           } else {
-            reject(new Error(payload?.message || "Google Sheets 랭킹 요청을 처리하지 못했습니다."));
+            reject(new Error(payload?.message || "랭킹 데이터 요청을 처리하지 못했습니다."));
           }
         };
 
@@ -4129,7 +4129,7 @@
         script.async = true;
         script.onerror = () => {
           cleanup();
-          reject(new Error("Google Sheets 랭킹에 연결하지 못했습니다."));
+          reject(new Error("랭킹 데이터에 연결하지 못했습니다."));
         };
         script.src = url.toString();
         document.head.appendChild(script);
@@ -4177,14 +4177,14 @@
       try {
         if (isRankingApiConfigured()) {
           rankings = await fetchRankingGoogleSheets();
-          note = "Google Sheets 랭킹 기준입니다.";
+          note = "랭킹 데이터 기준입니다.";
         } else {
           rankings = getRankings();
           note = "Google Sheets 웹앱 URL이 없어 임시 브라우저 랭킹을 표시합니다.";
         }
       } catch (error) {
         rankings = getRankings();
-        note = `Google Sheets 랭킹을 불러오지 못해 임시 브라우저 랭킹을 표시합니다. ${error.message || ""}`.trim();
+        note = `랭킹을 불러오지 못해 임시 브라우저 랭킹을 표시합니다. ${error.message || ""}`.trim();
       }
 
       rankings = normalizeRankingList(rankings)
