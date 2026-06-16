@@ -976,6 +976,12 @@ select {
   font-weight: 800;
 }
 
+.acid-status [data-acid-time] {
+  display: inline-block;
+  min-width: 7ch;
+  font-variant-numeric: tabular-nums;
+}
+
 .acid-arena {
   position: relative;
   height: 380px;

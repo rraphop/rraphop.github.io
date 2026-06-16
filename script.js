@@ -997,6 +997,21 @@ function normalizedTerm(value) {
   return normalizeAnswer(value);
 }
 
+function getAcidTermLength(term) {
+  return Math.max(1, normalizedTerm(term).length);
+}
+
+function getAcidTermScore(term) {
+  return Math.min(getAcidTermLength(term), 5) * 2;
+}
+
+function getAcidTermSpeedRatio(term) {
+  const length = getAcidTermLength(term);
+  if (length <= 2) return 1;
+  if (length >= 7) return 0.5;
+  return (12 - length) / 10;
+}
+
 function uniqueTerms(terms) {
   const seen = new Set();
   return terms.filter((term) => {
@@ -1094,6 +1109,8 @@ function initAcidRainGame(root) {
   let acidRankingsState = getStoredRankings();
   let acidRankingStatus = "";
   let acidRankingLoadId = 0;
+  let isAcidAnswerComposing = false;
+  let shouldSubmitAcidAnswerAfterComposition = false;
   const touchStartQuery = window.matchMedia?.("(hover: none), (pointer: coarse)");
   const mobileLayoutQuery = window.matchMedia?.("(max-width: 820px)");
   const mobileSpeedBreakpoint = 768;
@@ -1456,7 +1473,7 @@ function initAcidRainGame(root) {
     const term = termBank[Math.floor(Math.random() * termBank.length)];
     const element = document.createElement("button");
     const left = 4 + Math.random() * 76;
-    const desktopSpeed = 32 + acidState.level * 10 + Math.random() * 18;
+    const desktopSpeed = (32 + acidState.level * 10 + Math.random() * 18) * getAcidTermSpeedRatio(term);
     element.type = "button";
     element.className = "acid-drop";
     element.textContent = term;
@@ -1620,11 +1637,41 @@ function initAcidRainGame(root) {
     if (hitIndex >= 0) {
       const [hit] = acidState.terms.splice(hitIndex, 1);
       hit.element.remove();
-      acidState.score += 10;
+      acidState.score += getAcidTermScore(hit.term);
       acidState.level = Math.min(9, Math.floor(acidState.score / 50) + 1);
       updateAcidStatus();
     }
     acidAnswer.value = "";
+  }
+
+  function submitAcidAnswerFromInput() {
+    if (!acidState.running) return;
+    if (typeof acidForm.requestSubmit === "function") {
+      acidForm.requestSubmit();
+      return;
+    }
+    acidForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  }
+
+  function handleAcidAnswerCompositionStart() {
+    isAcidAnswerComposing = true;
+  }
+
+  function handleAcidAnswerCompositionEnd() {
+    isAcidAnswerComposing = false;
+    if (!shouldSubmitAcidAnswerAfterComposition) return;
+    shouldSubmitAcidAnswerAfterComposition = false;
+    requestAnimationFrame(submitAcidAnswerFromInput);
+  }
+
+  function handleAcidAnswerKeydown(event) {
+    if (event.key !== "Enter") return;
+    if (isAcidAnswerComposing || event.isComposing || event.keyCode === 229) {
+      shouldSubmitAcidAnswerAfterComposition = true;
+      return;
+    }
+    event.preventDefault();
+    submitAcidAnswerFromInput();
   }
 
   async function handleAcidRankSubmit(event) {
@@ -1676,6 +1723,9 @@ function initAcidRainGame(root) {
     acidRestart?.addEventListener("click", restartAcidRainGame);
     acidExit?.addEventListener("click", exitAcidRainGame);
     acidForm.addEventListener("submit", handleAcidAnswer);
+    acidAnswer?.addEventListener("compositionstart", handleAcidAnswerCompositionStart);
+    acidAnswer?.addEventListener("compositionend", handleAcidAnswerCompositionEnd);
+    acidAnswer?.addEventListener("keydown", handleAcidAnswerKeydown);
     acidRankForm?.addEventListener("submit", handleAcidRankSubmit);
     acidArena.addEventListener("pointerdown", handleAcidArenaPointerStart);
     document.addEventListener("keydown", handleAcidKeydown);
