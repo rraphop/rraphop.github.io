@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>역사 추리왕 | 사회·역사 배움터</title>
   <meta name="theme-color" content="#163f39">
+  <script>
+    if (new URLSearchParams(window.location.search).get("embed") === "1") {
+      document.documentElement.classList.add("embedded-history-game");
+    }
+  </script>
 
   <!-- =========================
        1. STYLE
@@ -46,6 +51,34 @@
       background:
         linear-gradient(180deg, rgba(226, 238, 247, 0.82), rgba(248, 244, 236, 0.98) 360px),
         var(--paper);
+    }
+
+    html.embedded-history-game,
+    html.embedded-history-game body {
+      min-height: auto;
+      background: transparent;
+    }
+
+    html.embedded-history-game .site-header,
+    html.embedded-history-game .app-hero,
+    html.embedded-history-game .site-footer {
+      display: none;
+    }
+
+    html.embedded-history-game .app {
+      width: 100%;
+      padding: 0;
+    }
+
+    .embedded-game-title {
+      display: none;
+      margin: 0 0 8px;
+      font-size: 1.5em;
+      line-height: 1.25;
+    }
+
+    html.embedded-history-game .embedded-game-title {
+      display: block;
     }
 
     button,
@@ -992,6 +1025,7 @@
     <section class="screen active" id="startScreen" data-screen="start">
       <div class="panel setup-panel">
         <div class="form-grid">
+          <h2 class="embedded-game-title">역사 추리왕 게임</h2>
           <div class="field">
             <label for="nicknameInput">닉네임</label>
             <input id="nicknameInput" type="text" maxlength="12" autocomplete="name" placeholder="이름 또는 별명 입력">
@@ -4478,7 +4512,41 @@
       }[char]));
     }
 
+    const isEmbeddedHistoryGame = document.documentElement.classList.contains("embedded-history-game");
+
+    function postEmbeddedHistoryGameHeight() {
+      if (!isEmbeddedHistoryGame || window.parent === window) return;
+
+      const height = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight
+      );
+      const targetOrigin = window.location.origin === "null" ? "*" : window.location.origin;
+      window.parent.postMessage({
+        type: "history-cause-effect-height",
+        height
+      }, targetOrigin);
+    }
+
+    function startEmbeddedHistoryGameResizer() {
+      if (!isEmbeddedHistoryGame) return;
+
+      const updateHeight = () => window.requestAnimationFrame(postEmbeddedHistoryGameHeight);
+      window.addEventListener("load", updateHeight);
+      window.addEventListener("resize", updateHeight);
+
+      if ("ResizeObserver" in window) {
+        const resizeObserver = new ResizeObserver(updateHeight);
+        resizeObserver.observe(document.body);
+      } else {
+        window.setInterval(postEmbeddedHistoryGameHeight, 500);
+      }
+
+      updateHeight();
+    }
+
     initGame();
+    startEmbeddedHistoryGameResizer();
   </script>
 </body>
 </html>

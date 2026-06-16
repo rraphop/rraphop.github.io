@@ -11,10 +11,10 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0f2f4a">
-  <link rel="stylesheet" href="style.css?v=game-note-spacing-2026-06-05">
+  <link rel="stylesheet" href="style.css?v=game-picker-embed-2026-06-17">
   <script defer src="qna-config.js"></script>
   <script defer src="quiz-data.js"></script>
-  <script defer src="script.js"></script>
+  <script defer src="script.js?v=game-picker-embed-2026-06-17"></script>
 </head>
 <body>
   <header class="site-header">
@@ -45,10 +45,10 @@
         <strong>산성비 게임</strong>
         <span>사회 또는 역사 항목을 선택한 뒤 떨어지는 용어를 입력합니다.</span>
       </button>
-      <a class="game-choice" href="history-cause-effect-game.html">
+      <button class="game-choice" type="button" data-game-choice="detective">
         <strong>역사 추리왕</strong>
         <span>사건의 원인과 결과를 연결하며 역사 흐름을 추리합니다.</span>
-      </a>
+      </button>
       <p class="game-picker-note">새로운 학습용 게임이 계속 추가될 예정입니다.</p>
     </section>
 
@@ -152,6 +152,15 @@
         <h3>산성비 게임 랭킹</h3>
         <div class="acid-ranking-grid" data-acid-rankings></div>
       </section>
+    </section>
+
+    <section class="section game-panel history-game-panel" id="detectiveGame" data-game-panel="detective" aria-label="역사 추리왕 게임">
+      <iframe
+        class="history-game-frame"
+        data-history-game-frame
+        src="history-cause-effect-game.html?embed=1"
+        title="역사 추리왕"
+        loading="lazy"></iframe>
     </section>
   </main>
 

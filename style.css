@@ -529,6 +529,10 @@ details,
   text-align: center;
 }
 
+.game-picker.has-active-game .game-picker-note {
+  display: none;
+}
+
 .game-choice.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(31, 122, 104, 0.16), var(--shadow);
@@ -540,6 +544,22 @@ details,
 
 .game-panel.active {
   display: block;
+}
+
+.history-game-panel {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.history-game-frame {
+  display: block;
+  width: 100%;
+  min-height: 820px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
 }
 
 .game-heading-row {

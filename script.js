@@ -788,9 +788,12 @@ const timelineBankList = document.querySelector("#timelineBankList");
 const timelineModeButtons = document.querySelectorAll("[data-timeline-mode]");
 const gameChoices = document.querySelectorAll("[data-game-choice]");
 const gamePanels = document.querySelectorAll("[data-game-panel]");
+const gamePicker = document.querySelector(".game-picker");
+const historyGameFrame = document.querySelector("[data-history-game-frame]");
 let timelineMode = "korean";
 
 function showGamePanel(gameName, updateHash = false) {
+  gamePicker?.classList.add("has-active-game");
   gameChoices.forEach((button) => {
     button.classList.toggle("active", button.dataset.gameChoice === gameName);
   });
@@ -805,6 +808,7 @@ function showGamePanel(gameName, updateHash = false) {
 }
 
 function showGameMenu(updateHash = false) {
+  gamePicker?.classList.remove("has-active-game");
   gameChoices.forEach((button) => button.classList.remove("active"));
   gamePanels.forEach((panel) => panel.classList.remove("active"));
   if (updateHash) {
@@ -822,7 +826,10 @@ if (gameChoices.length > 0) {
     socialAcidRainGame: "acid",
     historyAcidRainGame: "acid",
     "social-acid": "acid",
-    "history-acid": "acid"
+    "history-acid": "acid",
+    historyCauseEffectGame: "detective",
+    "history-detective": "detective",
+    "cause-effect": "detective"
   };
   const requestedPanel = hashTarget
     ? document.getElementById(hashTarget)
@@ -832,6 +839,41 @@ if (gameChoices.length > 0) {
   } else if (panelAliases[hashTarget]) {
     showGamePanel(panelAliases[hashTarget]);
   }
+}
+
+if (historyGameFrame) {
+  function resizeHistoryGameFrame(height) {
+    if (!Number.isFinite(height)) return;
+    historyGameFrame.style.height = `${Math.max(720, Math.ceil(height))}px`;
+  }
+
+  function syncHistoryGameFrameHeight() {
+    try {
+      const frameDocument = historyGameFrame.contentDocument;
+      if (!frameDocument) return;
+      resizeHistoryGameFrame(Math.max(
+        frameDocument.documentElement.scrollHeight,
+        frameDocument.body.scrollHeight
+      ));
+    } catch {
+      // Cross-document reads can be unavailable in some browser contexts.
+    }
+  }
+
+  window.addEventListener("message", (event) => {
+    const isSameOrigin = event.origin === window.location.origin || event.origin === "null";
+    const isHistoryFrame = event.source === historyGameFrame.contentWindow;
+    if (!isSameOrigin && !isHistoryFrame) return;
+    if (event.data?.type !== "history-cause-effect-height") return;
+
+    resizeHistoryGameFrame(Number(event.data.height));
+  });
+
+  historyGameFrame.addEventListener("load", () => {
+    syncHistoryGameFrameHeight();
+    window.setTimeout(syncHistoryGameFrameHeight, 100);
+    window.setTimeout(syncHistoryGameFrameHeight, 350);
+  });
 }
 
 function renderTimeline() {
