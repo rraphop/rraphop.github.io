@@ -233,9 +233,35 @@ async function updateVisitorCounter() {
 
   try {
     const alreadyCountedToday = hasCountedVisitorToday(todayKey);
-    const data = await visitorApiRequest(alreadyCountedToday ? "count" : "visit", { date: todayKey });
-    if (!alreadyCountedToday) markVisitorCounted(data.date || todayKey);
-    renderVisitorCounter(data.today, data.total);
+    if (alreadyCountedToday) {
+      const data = await visitorApiRequest("count", { date: todayKey });
+      renderVisitorCounter(data.today, data.total);
+      return;
+    }
+
+    const visitResultPromise = visitorApiRequest("visit", { date: todayKey }).then(
+      (data) => ({ data, error: null }),
+      (error) => ({ data: null, error })
+    );
+
+    try {
+      const countData = await visitorApiRequest("count", { date: todayKey });
+      renderVisitorCounter(countData.today, countData.total);
+    } catch (countError) {
+      const visitResult = await visitResultPromise;
+      if (!visitResult.data) throw countError;
+      markVisitorCounted(visitResult.data.date || todayKey);
+      renderVisitorCounter(visitResult.data.today, visitResult.data.total);
+      return;
+    }
+
+    const visitResult = await visitResultPromise;
+    if (visitResult.data) {
+      markVisitorCounted(visitResult.data.date || todayKey);
+      renderVisitorCounter(visitResult.data.today, visitResult.data.total);
+    } else {
+      console.warn(visitResult.error);
+    }
   } catch (error) {
     console.warn(error);
     renderVisitorCounterError();

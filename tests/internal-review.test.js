@@ -133,6 +133,12 @@ for (const action of [
 const bridgeHtml = evaluate("createDataBridgePage_().html");
 assert.match(bridgeHtml, /social-history-data-bridge-request/);
 assert.match(bridgeHtml, /https:\/\/rraphop\.github\.io/);
+assert.match(bridgeHtml, /window\.top\.postMessage/);
+assert.doesNotMatch(bridgeHtml, /window\.parent\.postMessage/);
+
+const dataApiClient = read("qna-config.js");
+assert.match(dataApiClient, /bridgeWindow = event\.source/);
+assert.match(dataApiClient, /googleusercontent/);
 
 const sessionToken = JSON.parse(evaluate(
   'JSON.stringify(createGameSession_("acid", { group: "social" }))'

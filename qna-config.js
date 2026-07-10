@@ -1,4 +1,4 @@
-const QNA_API_URL = "https://script.google.com/macros/s/AKfycbxTv7mJV_Uxr5DKjOIi51MWTon131RTu2HGrbr4Z4ZQmLjPPG97paStHf6eGoFbqMq7/exec";
+const QNA_API_URL = "https://script.google.com/macros/s/AKfycbyYOmtAsnBZwQkAw8ijJtO0h1sUv1ecRwxxyj3tWM_xXANrrlN9jD__MrR79F-0eVMq/exec";
 
 window.QNA_CONFIG = {
   apiUrl: QNA_API_URL,
@@ -17,6 +17,7 @@ window.QNA_CONFIG = {
   ]);
   const pendingBridgeRequests = new Map();
   let bridgeFrame = null;
+  let bridgeWindow = null;
   let bridgeOrigin = "";
   let bridgeChannel = "";
   let bridgeReadyPromise = null;
@@ -80,16 +81,18 @@ window.QNA_CONFIG = {
   }
 
   function handleBridgeMessage(event) {
-    if (!bridgeFrame || event.source !== bridgeFrame.contentWindow) return;
     const message = event.data;
-    if (!message || message.channel !== bridgeChannel) return;
+    if (!bridgeFrame || !message || message.channel !== bridgeChannel) return;
+    if (!isTrustedBridgeOrigin(event.origin)) return;
 
     if (message.type === "social-history-data-bridge-ready") {
+      bridgeWindow = event.source;
       bridgeOrigin = event.origin === "null" ? "*" : event.origin;
       return;
     }
 
     if (message.type !== "social-history-data-bridge-response") return;
+    if (!bridgeWindow || event.source !== bridgeWindow) return;
     const pending = pendingBridgeRequests.get(message.id);
     if (!pending) return;
     pendingBridgeRequests.delete(message.id);
@@ -104,17 +107,29 @@ window.QNA_CONFIG = {
 
   window.addEventListener("message", handleBridgeMessage);
 
+  function isTrustedBridgeOrigin(origin) {
+    return origin === "https://script.google.com"
+      || /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/i.test(origin);
+  }
+
   function ensureBridge(options = {}) {
     if (bridgeReadyPromise) return bridgeReadyPromise;
 
     bridgeReadyPromise = new Promise((resolve, reject) => {
       bridgeChannel = createRequestId("bridge");
       bridgeFrame = document.createElement("iframe");
-      bridgeFrame.hidden = true;
       bridgeFrame.tabIndex = -1;
       bridgeFrame.title = "";
       bridgeFrame.setAttribute("aria-hidden", "true");
-      bridgeFrame.style.display = "none";
+      Object.assign(bridgeFrame.style, {
+        position: "fixed",
+        width: "1px",
+        height: "1px",
+        left: "-10000px",
+        border: "0",
+        opacity: "0",
+        pointerEvents: "none"
+      });
 
       const timeoutId = window.setTimeout(() => {
         window.removeEventListener("message", waitForBridgeReady);
@@ -122,15 +137,17 @@ window.QNA_CONFIG = {
         bridgeReadyPromise = null;
         bridgeFrame?.remove();
         bridgeFrame = null;
+        bridgeWindow = null;
         bridgeOrigin = "";
       }, Number(config.timeoutMs) || 15000);
 
       function waitForBridgeReady(event) {
-        if (!bridgeFrame || event.source !== bridgeFrame.contentWindow) return;
+        if (!bridgeFrame || !isTrustedBridgeOrigin(event.origin)) return;
         if (event.data?.type !== "social-history-data-bridge-ready") return;
         if (event.data.channel !== bridgeChannel) return;
         window.removeEventListener("message", waitForBridgeReady);
         window.clearTimeout(timeoutId);
+        bridgeWindow = event.source;
         bridgeOrigin = event.origin === "null" ? "*" : event.origin;
         resolve();
       }
@@ -163,7 +180,7 @@ window.QNA_CONFIG = {
         defaultErrorMessage: options.defaultErrorMessage || "데이터 요청을 처리하지 못했습니다."
       });
 
-      bridgeFrame.contentWindow.postMessage({
+      bridgeWindow.postMessage({
         type: "social-history-data-bridge-request",
         channel: bridgeChannel,
         id,

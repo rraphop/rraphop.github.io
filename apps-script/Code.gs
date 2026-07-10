@@ -138,7 +138,7 @@ function createDataBridgePage_() {
   }
 
   function respond(origin, id, payload) {
-    window.parent.postMessage({
+    window.top.postMessage({
       type: "social-history-data-bridge-response",
       channel: channel,
       id: id,
@@ -148,7 +148,7 @@ function createDataBridgePage_() {
 
   window.addEventListener("message", function (event) {
     const message = event.data;
-    if (event.source !== window.parent || !isAllowedOrigin(event.origin)) return;
+    if (event.source !== window.top || !isAllowedOrigin(event.origin)) return;
     if (!message || message.type !== "social-history-data-bridge-request") return;
     if (message.channel !== channel || !message.id) return;
 
@@ -167,7 +167,7 @@ function createDataBridgePage_() {
       .handleBridgeRequest({ action: message.action, params: message.params || {} });
   });
 
-  window.parent.postMessage({
+  window.top.postMessage({
     type: "social-history-data-bridge-ready",
     channel: channel
   }, "*");
