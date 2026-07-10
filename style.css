@@ -360,8 +360,7 @@ a {
 .game-choice,
 .qna-form,
 .comparison-table,
-details,
-.question-item {
+details {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -648,12 +647,6 @@ ul {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
-}
-
-.home-shortcuts {
-  width: min(1120px, calc(100% - 40px));
-  margin: 0 auto;
-  padding: 0 0 72px;
 }
 
 .shortcut-card {
@@ -1226,10 +1219,6 @@ summary {
   font-weight: 900;
 }
 
-.posted-title {
-  margin-top: 24px;
-}
-
 .qna-board-section {
   width: 100%;
   display: grid;
@@ -1432,10 +1421,6 @@ summary {
   color: #fff;
   background: var(--accent);
   border-color: var(--accent);
-}
-
-.question-item {
-  padding: 15px;
 }
 
 .question-author {
@@ -1826,108 +1811,6 @@ tbody th {
 
   .game-heading-row {
     display: grid;
-  }
-
-  #acidRainGame.active {
-    padding-bottom: 112px;
-    scroll-margin-top: 78px;
-  }
-
-  #acidRainGame .game-heading-row {
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-
-  #acidRainGame .game-heading-row p {
-    margin: 8px 0 0;
-    font-size: 0.92rem;
-    line-height: 1.45;
-  }
-
-  #acidRainGame .timeline-title-row {
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  #acidRainGame .game-actions {
-    gap: 8px;
-  }
-
-  #acidRainGame .game-actions .button {
-    flex: 1 1 0;
-  }
-
-  .acid-status {
-    flex-wrap: nowrap;
-    gap: 6px;
-    margin-bottom: 8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-
-  .acid-status span {
-    min-height: 30px;
-    flex: 0 0 auto;
-    padding: 0 9px;
-    font-size: 0.82rem;
-    white-space: nowrap;
-  }
-
-  .acid-arena {
-    height: 50vh;
-    height: 50svh;
-    min-height: 220px;
-    max-height: none;
-    border-radius: 0;
-    margin-inline: -24px;
-    border-inline: 0;
-  }
-
-  .acid-ready {
-    padding: 18px;
-    font-size: 0.98rem;
-  }
-
-  .acid-drop {
-    max-width: min(48vw, 150px);
-    min-height: 32px;
-    padding: 5px 9px;
-    font-size: 0.88rem;
-  }
-
-  .acid-input-row {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: var(--acid-keyboard-inset, 0px);
-    bottom: calc(var(--acid-keyboard-inset, 0px) + env(safe-area-inset-bottom));
-    z-index: 30;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    margin: 0;
-    padding: 10px 12px;
-    background: rgba(251, 250, 246, 0.98);
-    border-top: 1px solid var(--line);
-    box-shadow: 0 -12px 28px rgba(30, 37, 43, 0.14);
-  }
-
-  .acid-input-row label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
-  .acid-input-row input {
-    min-height: 46px;
-  }
-
-  .acid-input-row .button {
-    min-width: 72px;
-    min-height: 46px;
-    padding: 0 14px;
   }
 
   .preview-grid {

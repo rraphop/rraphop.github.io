@@ -72,7 +72,10 @@ QNA_ADMIN_PASSWORD = 선생님이 사용할 관리자 비밀번호
 
 ```text
 QNA_PASSWORD_SALT = 임의의 긴 문자열
+WEB_ALLOWED_ORIGINS = https://rraphop.github.io
 ```
+
+`WEB_ALLOWED_ORIGINS`에는 홈페이지를 제공하는 HTTPS 출처를 쉼표로 구분해 입력합니다. 설정하지 않으면 `https://rraphop.github.io`만 허용됩니다.
 
 Standalone Apps Script로 만들었거나 스프레드시트에 바인딩하지 않은 경우에는 아래도 설정합니다.
 
@@ -102,9 +105,7 @@ monthly_count
 역사 추리왕 랭킹
 ```
 
-이미 웹앱을 배포했다면 아래 주소를 브라우저에서 한 번 열어도 같은 초기화가 실행됩니다.
-
-복사한 Apps Script 웹앱 `/exec` URL 뒤에 `?action=setupSheets`를 붙여 엽니다.
+시트 초기화와 방문자 데이터 재구축 함수는 보안을 위해 공개 웹 주소에서 실행할 수 없습니다. 반드시 Apps Script 편집기의 함수 실행 메뉴에서 직접 실행합니다.
 
 ## 6. qna-config.js 확인
 
@@ -137,7 +138,7 @@ window.QNA_CONFIG = {
 
 ## 참고 사항
 
-- 정적 HTML에서도 동작하도록 `script.js`는 Apps Script를 JSONP 방식으로 호출합니다.
+- 정적 HTML에서도 동작하도록 공개 조회는 JSONP를 사용하고, 비밀번호와 저장 데이터는 허용된 홈페이지 출처의 보안 브리지를 통해 전달합니다.
 - 방문자 카운터 숫자는 Google Sheets 응답 값만 표시하고, 브라우저에는 중복 계수 방지용 날짜만 저장합니다.
 - 예전 `key/value` 구조나 방문 1회당 1행 구조의 `count` 시트가 남아 있으면 Apps Script가 기존 누적값을 날짜별 `date/count` 구조로 합산 정리합니다.
 - 산성비 랭킹은 Google Sheets의 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트에 각각 저장되며 홈페이지에는 상위 10개 기록이 표시됩니다.
@@ -145,7 +146,7 @@ window.QNA_CONFIG = {
 - 같은 브라우저/기기에서 같은 날 새로고침하거나 다시 방문해도 중복 카운트되지 않도록 `localStorage`에 오늘 계수 여부만 저장합니다.
 - 질문 수정 비밀번호는 Google Sheets에 원문이 아니라 해시로 저장됩니다.
 - 관리자 비밀번호는 홈페이지 JS에 넣지 않고 Apps Script 스크립트 속성 `QNA_ADMIN_PASSWORD`에서 검증합니다.
-- Apps Script를 새 버전으로 수정한 뒤에는 `배포 관리`에서 새 버전을 배포해야 홈페이지에 반영됩니다.
+- Apps Script를 새 버전으로 수정한 뒤에는 `배포 관리`에서 새 버전을 먼저 배포한 다음 홈페이지 파일을 배포해야 안전한 저장 요청이 정상 동작합니다.
 - 매우 민감한 개인정보를 받는 게시판이라면 Apps Script보다 인증이 있는 별도 백엔드를 쓰는 편이 안전합니다.
 
 ## 오류 해결

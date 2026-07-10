@@ -3,6 +3,7 @@ const currentPage = location.pathname.split("/").pop() || "index.html";
 document.querySelectorAll(".site-nav a").forEach((link) => {
   if (link.getAttribute("href") === currentPage) {
     link.classList.add("active");
+    link.setAttribute("aria-current", "page");
   }
 });
 
@@ -13,6 +14,7 @@ if (menuButton && siteNav) {
   menuButton.addEventListener("click", () => {
     const isOpen = siteNav.classList.toggle("open");
     menuButton.setAttribute("aria-expanded", String(isOpen));
+    menuButton.setAttribute("aria-label", isOpen ? "메뉴 닫기" : "메뉴 열기");
   });
 }
 
@@ -116,12 +118,7 @@ function shuffle(items) {
 }
 
 const visitorCounter = document.querySelector("#visitorCounter");
-const visitorCacheKey = "socialHistoryVisitorCountCacheV3";
 const visitorCountedDateKey = "socialHistoryVisitorCountedDateV1";
-const dataApiUrl = window.QNA_CONFIG?.apiUrl
-  || window.QNA_API_URL
-  || "";
-const dataRequestTimeout = Number(window.QNA_CONFIG?.timeoutMs) || 15000;
 const visitorCountBaseSize = 1.16;
 const visitorCountMinSize = 0.62;
 
@@ -139,67 +136,12 @@ function getVisitorDateKey(date = new Date()) {
 }
 
 function isDataApiConfigured() {
-  try {
-    const url = new URL(dataApiUrl);
-    return url.protocol === "https:" && url.pathname.endsWith("/exec");
-  } catch {
-    return false;
-  }
+  return Boolean(window.DATA_API?.isConfigured());
 }
 
 function dataApiRequest(action, params = {}, options = {}) {
-  return new Promise((resolve, reject) => {
-    if (!isDataApiConfigured()) {
-      reject(new Error(options.notConfiguredMessage || "데이터 연결 주소를 설정하세요."));
-      return;
-    }
-
-    const callbackPrefix = options.callbackPrefix || "__dataCallback";
-    const callbackName = `${callbackPrefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    const timeoutId = window.setTimeout(() => {
-      cleanup();
-      reject(new Error(options.timeoutMessage || "응답 시간이 초과되었습니다."));
-    }, dataRequestTimeout);
-
-    function cleanup() {
-      window.clearTimeout(timeoutId);
-      delete window[callbackName];
-      script.remove();
-    }
-
-    window[callbackName] = (payload) => {
-      cleanup();
-      if (payload?.ok) {
-        resolve(payload);
-      } else {
-        reject(new Error(payload?.message || options.defaultErrorMessage || "데이터 요청을 처리하지 못했습니다."));
-      }
-    };
-
-    const url = new URL(dataApiUrl);
-    url.searchParams.set("callback", callbackName);
-    url.searchParams.set("action", action);
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value == null ? "" : String(value));
-    });
-
-    script.async = true;
-    script.onerror = () => {
-      cleanup();
-      reject(new Error(options.connectionErrorMessage || "데이터에 연결하지 못했습니다."));
-    };
-    script.src = url.toString();
-    document.head.appendChild(script);
-  });
-}
-
-function clearCachedVisitorCounter() {
-  try {
-    localStorage.removeItem(visitorCacheKey);
-  } catch {
-    // 방문자 수의 기준 데이터는 데이터 저장소에서만 읽습니다.
-  }
+  if (window.DATA_API) return window.DATA_API.request(action, params, options);
+  return Promise.reject(new Error(options.notConfiguredMessage || "데이터 연결 주소를 설정하세요."));
 }
 
 function hasCountedVisitorToday(todayKey) {
@@ -264,12 +206,10 @@ async function updateVisitorCounter() {
   if (!visitorCounter) return;
 
   const todayKey = getVisitorDateKey();
-  clearCachedVisitorCounter();
 
   try {
     const alreadyCountedToday = hasCountedVisitorToday(todayKey);
     const data = await visitorApiRequest(alreadyCountedToday ? "count" : "visit", { date: todayKey });
-    console.log("[visitor-counter] response", data);
     if (!alreadyCountedToday) markVisitorCounted(data.date || todayKey);
     renderVisitorCounter(data.today, data.total);
   } catch (error) {
@@ -863,7 +803,7 @@ if (historyGameFrame) {
   window.addEventListener("message", (event) => {
     const isSameOrigin = event.origin === window.location.origin || event.origin === "null";
     const isHistoryFrame = event.source === historyGameFrame.contentWindow;
-    if (!isSameOrigin && !isHistoryFrame) return;
+    if (!isSameOrigin || !isHistoryFrame) return;
     if (event.data?.type !== "history-cause-effect-height") return;
 
     resizeHistoryGameFrame(Number(event.data.height));
@@ -1001,8 +941,8 @@ if (timelineList) {
   });
 
   timelineResultModal?.addEventListener("click", (event) => {
-    if (event.target.closest("#restartTimelineResult")) return;
-    drawTimelineRound();
+    if (!event.target.closest("[data-timeline-result-close]")) return;
+    closeTimelineResult();
   });
 
   restartTimelineResult?.addEventListener("click", (event) => {
@@ -1012,7 +952,7 @@ if (timelineList) {
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !timelineResultModal?.hidden) {
-      drawTimelineRound();
+      closeTimelineResult();
     }
   });
 }
@@ -1151,6 +1091,9 @@ function initAcidRainGame(root) {
   let acidRankingsState = getStoredRankings();
   let acidRankingStatus = "";
   let acidRankingLoadId = 0;
+  let acidRankingSessionPromise = null;
+  let acidGameHistoryActive = false;
+  let acidExitAfterHistoryBack = false;
   let isAcidAnswerComposing = false;
   let shouldSubmitAcidAnswerAfterComposition = false;
   const touchStartQuery = window.matchMedia?.("(hover: none), (pointer: coarse)");
@@ -1401,7 +1344,13 @@ function initAcidRainGame(root) {
       throw new Error("랭킹 데이터 연결을 설정하세요.");
     }
 
+    const session = await acidRankingSessionPromise;
+    if (!session?.token) {
+      throw session?.error || new Error("랭킹 등록 세션을 확인하지 못했습니다.");
+    }
+
     const payload = await dataApiRequest("acidRankingCreate", {
+      sessionToken: session.token,
       group: currentTermGroup,
       name: getPlayerName(name).slice(0, 12),
       score: acidState.score,
@@ -1493,6 +1442,7 @@ function initAcidRainGame(root) {
   function resetAcidGame(message = getReadyMessage()) {
     stopAcidTimers();
     acidState = createAcidState();
+    acidRankingSessionPromise = null;
     root.classList.remove("acid-game-running");
     root.classList.remove("acid-game-ended");
     acidArena.querySelectorAll(".acid-drop").forEach((item) => item.remove());
@@ -1618,6 +1568,22 @@ function initAcidRainGame(root) {
     syncAcidSpeedMultiplier();
     resetAcidGame("");
     acidState.running = true;
+    if (isAcidMobileLayout() && !acidGameHistoryActive) {
+      history.pushState(
+        Object.assign({}, history.state || {}, { acidRainRunning: true }),
+        "",
+        location.href
+      );
+      acidGameHistoryActive = true;
+    }
+    acidRankingSessionPromise = dataApiRequest("acidRankingSession", {
+      group: currentTermGroup
+    }, {
+      timeoutMessage: "산성비 랭킹 세션 응답 시간이 초과되었습니다.",
+      defaultErrorMessage: "산성비 랭킹 세션을 만들지 못했습니다.",
+      connectionErrorMessage: "산성비 랭킹 세션에 연결하지 못했습니다."
+    }).then((payload) => ({ token: payload.token }))
+      .catch((error) => ({ error }));
     root.classList.add("acid-game-running");
     updateAcidViewportMetrics();
     acidState.startedAt = performance.now();
@@ -1656,6 +1622,11 @@ function initAcidRainGame(root) {
   }
 
   function exitAcidRainGame() {
+    if (acidGameHistoryActive) {
+      acidExitAfterHistoryBack = true;
+      history.back();
+      return;
+    }
     resetAcidGame();
     showGameMenu(true);
     document.querySelector(".game-picker")?.scrollIntoView({ block: "start" });
@@ -1742,6 +1713,15 @@ function initAcidRainGame(root) {
   }
 
   function handleAcidKeydown(event) {
+    if (event.key === "Escape" && acidState.running) {
+      event.preventDefault();
+      if (acidGameHistoryActive) {
+        history.back();
+      } else {
+        resetAcidGame();
+      }
+      return;
+    }
     const activeElement = document.activeElement;
     const isTyping = activeElement?.matches("input, textarea, select");
     if (event.code !== "Space" || isTyping || !root.classList.contains("active")) return;
@@ -1778,6 +1758,16 @@ function initAcidRainGame(root) {
     window.addEventListener("resize", syncAcidMobileLayout);
     window.visualViewport?.addEventListener("resize", updateAcidViewportMetrics);
     window.visualViewport?.addEventListener("scroll", updateAcidViewportMetrics);
+    window.addEventListener("popstate", () => {
+      if (!acidGameHistoryActive) return;
+      acidGameHistoryActive = false;
+      resetAcidGame();
+      if (acidExitAfterHistoryBack) {
+        acidExitAfterHistoryBack = false;
+        showGameMenu(true);
+        document.querySelector(".game-picker")?.scrollIntoView({ block: "start" });
+      }
+    });
     updateAcidViewportMetrics();
   }
 }
@@ -1792,21 +1782,14 @@ const questionDetail = document.querySelector("#questionDetail");
 const questionPagination = document.querySelector("#questionPagination");
 const questionCount = document.querySelector("#questionCount");
 const qnaConfig = window.QNA_CONFIG || {};
-const qnaApiUrl = qnaConfig.apiUrl || window.QNA_API_URL || "";
-const qnaPageSize = 10;
-const qnaRequestTimeout = Number(qnaConfig.timeoutMs) || 15000;
+const qnaPageSize = Math.max(1, Number(qnaConfig.pageSize) || 10);
 let qnaCurrentPage = 1;
 let activeQuestionId = null;
 let qnaQuestions = [];
 let qnaBusy = false;
 
 function isQnaApiConfigured() {
-  try {
-    const url = new URL(qnaApiUrl);
-    return url.protocol === "https:" && url.pathname.endsWith("/exec");
-  } catch {
-    return false;
-  }
+  return isDataApiConfigured();
 }
 
 function normalizeQnaBoolean(value) {
@@ -1814,62 +1797,27 @@ function normalizeQnaBoolean(value) {
 }
 
 function normalizeRemoteQuestion(item) {
+  const privateQuestion = normalizeQnaBoolean(item.private);
   return {
     id: String(item.id || ""),
     createdAt: item.createdAt || "",
     affiliation: item.affiliation || "미기재",
     grade: item.grade || "미기재",
     name: item.name || "익명",
-    text: item.text || "",
-    private: normalizeQnaBoolean(item.private),
+    text: privateQuestion ? "" : item.text || "",
+    private: privateQuestion,
     answer: item.answer || "",
     answeredAt: item.answeredAt || ""
   };
 }
 
 function qnaApiRequest(action, params = {}) {
-  return new Promise((resolve, reject) => {
-    if (!isQnaApiConfigured()) {
-      reject(new Error("질문 데이터 연결이 아직 설정되지 않았습니다."));
-      return;
-    }
-
-    const callbackName = `__qnaCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    const timeoutId = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("게시판 응답 시간이 초과되었습니다."));
-    }, qnaRequestTimeout);
-
-    function cleanup() {
-      window.clearTimeout(timeoutId);
-      delete window[callbackName];
-      script.remove();
-    }
-
-    window[callbackName] = (payload) => {
-      cleanup();
-      if (payload?.ok) {
-        resolve(payload);
-      } else {
-        reject(new Error(payload?.message || "게시판 요청을 처리하지 못했습니다."));
-      }
-    };
-
-    const url = new URL(qnaApiUrl);
-    url.searchParams.set("callback", callbackName);
-    url.searchParams.set("action", action);
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value == null ? "" : String(value));
-    });
-
-    script.async = true;
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("게시판에 연결하지 못했습니다."));
-    };
-    script.src = url.toString();
-    document.head.appendChild(script);
+  return dataApiRequest(action, params, {
+    callbackPrefix: "__qnaCallback",
+    notConfiguredMessage: "질문 데이터 연결이 아직 설정되지 않았습니다.",
+    timeoutMessage: "게시판 응답 시간이 초과되었습니다.",
+    defaultErrorMessage: "게시판 요청을 처리하지 못했습니다.",
+    connectionErrorMessage: "게시판에 연결하지 못했습니다."
   });
 }
 
@@ -1917,11 +1865,11 @@ function renderQuestionTools(item, index) {
     <div class="question-tools">
       <details>
         <summary>질문 수정</summary>
-        <form class="board-form edit-question-form" data-index="${index}" data-question-id="${escapeHTML(getQuestionId(item, index))}">
+        <form class="board-form edit-question-form" data-index="${index}" data-question-id="${escapeHTML(getQuestionId(item, index))}" data-private="${item.private}">
           <label>수정 비밀번호</label>
-          <input type="password" name="editPassword" placeholder="등록할 때 설정한 비밀번호" required>
+          <input type="password" name="editPassword" maxlength="128" placeholder="등록할 때 설정한 비밀번호" required>
           <label>질문 내용 수정</label>
-          <textarea name="editText" rows="4" required>${escapeHTML(item.text || "")}</textarea>
+          <textarea name="editText" rows="4" maxlength="5000" required>${escapeHTML(item.text || "")}</textarea>
           <label class="anonymous-check">
             <input type="checkbox" name="editPrivate" ${item.private ? "checked" : ""}>
             비공개
@@ -1933,9 +1881,9 @@ function renderQuestionTools(item, index) {
         <summary>관리자 답변</summary>
         <form class="board-form admin-answer-form" data-index="${index}" data-question-id="${escapeHTML(getQuestionId(item, index))}">
           <label>관리자 비밀번호</label>
-          <input type="password" name="adminPassword" placeholder="관리자만 답변할 수 있습니다" required>
+          <input type="password" name="adminPassword" maxlength="128" placeholder="관리자만 답변할 수 있습니다" required>
           <label>답변 내용</label>
-          <textarea name="answerText" rows="4" required>${item.answer ? escapeHTML(item.answer) : ""}</textarea>
+          <textarea name="answerText" rows="4" maxlength="5000" required>${item.answer ? escapeHTML(item.answer) : ""}</textarea>
           <button class="button primary small" type="submit">답변 저장</button>
         </form>
       </details>
@@ -1943,7 +1891,7 @@ function renderQuestionTools(item, index) {
         <summary>관리자 삭제</summary>
         <form class="board-form admin-delete-form" data-index="${index}" data-question-id="${escapeHTML(getQuestionId(item, index))}">
           <label>관리자 비밀번호</label>
-          <input type="password" name="deletePassword" placeholder="삭제 권한 확인" required>
+          <input type="password" name="deletePassword" maxlength="128" placeholder="삭제 권한 확인" required>
           <p class="delete-warning">삭제하면 이 질문과 답변은 게시판에서 사라집니다.</p>
           <button class="button danger small" type="submit">질문 삭제</button>
         </form>
@@ -2145,6 +2093,36 @@ if (qnaForm && questionBoard) {
     }
   });
 
+  qnaBoardContainer.addEventListener("change", async (event) => {
+    const passwordInput = event.target.closest('.edit-question-form input[name="editPassword"]');
+    const editForm = passwordInput?.closest(".edit-question-form");
+    if (!editForm || editForm.dataset.private !== "true") return;
+
+    const editText = editForm.querySelector('textarea[name="editText"]');
+    const submitButton = editForm.querySelector('button[type="submit"]');
+    const password = passwordInput.value;
+    if (!password || editText?.value) return;
+
+    const index = Number(editForm.dataset.index);
+    passwordInput.disabled = true;
+    if (editText) editText.disabled = true;
+    if (submitButton) submitButton.disabled = true;
+    try {
+      const payload = await qnaApiRequest("privateQuestion", {
+        id: editForm.dataset.questionId,
+        password
+      });
+      if (editText) editText.value = payload.question?.text || "";
+      showBoardMessage(index, "비공개 질문 내용을 불러왔습니다.");
+    } catch (error) {
+      showBoardMessage(index, error.message || "비공개 질문 내용을 불러오지 못했습니다.", "error");
+    } finally {
+      passwordInput.disabled = false;
+      if (editText) editText.disabled = false;
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
+
   qnaBoardContainer.addEventListener("submit", async (event) => {
     const editForm = event.target.closest(".edit-question-form");
     const answerForm = event.target.closest(".admin-answer-form");
@@ -2172,8 +2150,9 @@ if (qnaForm && questionBoard) {
           text: String(formData.get("editText") || "").trim(),
           private: Boolean(formData.get("editPrivate"))
         });
-        showBoardMessage(index, "질문이 수정되었습니다.");
         await refreshQuestions();
+        const updatedIndex = qnaQuestions.findIndex((item, itemIndex) => getQuestionId(item, itemIndex) === id);
+        showBoardMessage(updatedIndex, "질문이 수정되었습니다.");
         return;
       }
 
@@ -2183,8 +2162,9 @@ if (qnaForm && questionBoard) {
           adminPassword: String(formData.get("adminPassword") || ""),
           answer: String(formData.get("answerText") || "").trim()
         });
-        showBoardMessage(index, "답변이 저장되었습니다.");
         await refreshQuestions();
+        const updatedIndex = qnaQuestions.findIndex((item, itemIndex) => getQuestionId(item, itemIndex) === id);
+        showBoardMessage(updatedIndex, "답변이 저장되었습니다.");
       }
 
       if (deleteForm) {

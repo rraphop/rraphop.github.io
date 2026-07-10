@@ -1028,7 +1028,7 @@
           <h2 class="embedded-game-title">역사 추리왕 게임</h2>
           <div class="field">
             <label for="nicknameInput">닉네임</label>
-            <input id="nicknameInput" type="text" maxlength="12" autocomplete="name" placeholder="이름 또는 별명 입력">
+            <input id="nicknameInput" type="text" maxlength="12" autocomplete="name" placeholder="이름 또는 별명 입력" required>
           </div>
 
           <div class="field">
@@ -1155,7 +1155,7 @@
     <p>사회·역사 배움터 | 중학교 수업 보조 학습용</p>
   </footer>
 
-  <script src="qna-config.js"></script>
+  <script src="qna-config.js?v=internal-fix-2026-07-10-02"></script>
 
   <!-- =========================
        2. QUESTION DATA
@@ -3800,8 +3800,6 @@
   ========================= -->
   <script>
     const rankingStorageKey = "historyCauseEffectRankingsV1";
-    const rankingApiUrl = window.HISTORY_CAUSE_EFFECT_RANKING_API_URL || window.QNA_CONFIG?.apiUrl || "";
-    const rankingRequestTimeout = 15000;
     const screens = {
       start: document.querySelector("#startScreen"),
       game: document.querySelector("#gameScreen"),
@@ -3848,6 +3846,7 @@
 
     let selectedArea = "전체";
     let rankingSaveSequence = 0;
+    let rankingSessionPromise = null;
     const lastChoiceOrderByQuestion = {};
 
     const gameState = {
@@ -3943,6 +3942,11 @@
       gameState.hasSubmitted = false;
       gameState.isGameOver = false;
       rankingSaveSequence += 1;
+      rankingSessionPromise = isRankingApiConfigured()
+        ? rankingApiRequest("historyCauseRankingSession", { area: selectedArea })
+          .then((payload) => ({ token: payload.token }))
+          .catch((error) => ({ error }))
+        : null;
       setRankingSaveMessage("");
 
       showScreen("game", { scrollTop: false });
@@ -4194,62 +4198,29 @@
     }
 
     function isRankingApiConfigured() {
-      try {
-        const url = new URL(rankingApiUrl);
-        return url.protocol === "https:" && url.pathname.endsWith("/exec");
-      } catch {
-        return false;
-      }
+      return Boolean(window.DATA_API?.isConfigured());
     }
 
     function rankingApiRequest(action, params = {}) {
-      return new Promise((resolve, reject) => {
-        if (!isRankingApiConfigured()) {
-          reject(new Error("랭킹 데이터 연결이 설정되지 않았습니다."));
-          return;
-        }
-
-        const callbackName = `__historyCauseRankingCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const script = document.createElement("script");
-        const timeoutId = window.setTimeout(() => {
-          cleanup();
-          reject(new Error("랭킹 데이터 응답 시간이 초과되었습니다."));
-        }, rankingRequestTimeout);
-
-        function cleanup() {
-          window.clearTimeout(timeoutId);
-          delete window[callbackName];
-          script.remove();
-        }
-
-        window[callbackName] = (payload) => {
-          cleanup();
-          if (payload?.ok) {
-            resolve(payload);
-          } else {
-            reject(new Error(payload?.message || "랭킹 데이터 요청을 처리하지 못했습니다."));
-          }
-        };
-
-        const url = new URL(rankingApiUrl);
-        url.searchParams.set("callback", callbackName);
-        url.searchParams.set("action", action);
-        Object.entries(params).forEach(([key, value]) => {
-          url.searchParams.set(key, value == null ? "" : String(value));
-        });
-
-        script.async = true;
-        script.onerror = () => {
-          cleanup();
-          reject(new Error("랭킹 데이터에 연결하지 못했습니다."));
-        };
-        script.src = url.toString();
-        document.head.appendChild(script);
+      if (!window.DATA_API) {
+        return Promise.reject(new Error("랭킹 데이터 연결이 설정되지 않았습니다."));
+      }
+      return window.DATA_API.request(action, params, {
+        callbackPrefix: "__historyCauseRankingCallback",
+        notConfiguredMessage: "랭킹 데이터 연결이 설정되지 않았습니다.",
+        timeoutMessage: "랭킹 데이터 응답 시간이 초과되었습니다.",
+        defaultErrorMessage: "랭킹 데이터 요청을 처리하지 못했습니다.",
+        connectionErrorMessage: "랭킹 데이터에 연결하지 못했습니다."
       });
     }
 
     async function saveRankingData(result) {
+      const session = await rankingSessionPromise;
+      if (!session?.token) {
+        throw session?.error || new Error("랭킹 등록 세션을 확인하지 못했습니다.");
+      }
       return rankingApiRequest("historyCauseRankingCreate", {
+        sessionToken: session.token,
         nickname: result.nickname,
         score: result.score,
         area: result.area,

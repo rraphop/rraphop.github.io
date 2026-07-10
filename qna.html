@@ -11,9 +11,9 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0f2f4a">
-  <link rel="stylesheet" href="style.css">
-  <script defer src="qna-config.js"></script>
-  <script defer src="script.js"></script>
+  <link rel="stylesheet" href="style.css?v=internal-fix-2026-07-10-02">
+  <script defer src="qna-config.js?v=internal-fix-2026-07-10-02"></script>
+  <script defer src="script.js?v=internal-fix-2026-07-10-02"></script>
 </head>
 <body>
   <header class="site-header">
@@ -45,7 +45,7 @@
               익명
             </label>
           </div>
-          <input id="studentAffiliation" name="studentAffiliation" type="text" placeholder="예: ○○중학교">
+          <input id="studentAffiliation" name="studentAffiliation" type="text" maxlength="80" placeholder="예: ○○중학교">
         </div>
 
         <div class="qna-field">
@@ -56,7 +56,7 @@
               익명
             </label>
           </div>
-          <input id="studentGrade" name="studentGrade" type="text" placeholder="예: 2학년">
+          <input id="studentGrade" name="studentGrade" type="text" maxlength="20" placeholder="예: 2학년">
         </div>
 
         <div class="qna-field">
@@ -67,7 +67,7 @@
               익명
             </label>
           </div>
-          <input id="studentName" name="studentName" type="text" placeholder="예: 예원">
+          <input id="studentName" name="studentName" type="text" maxlength="40" placeholder="예: 예원">
         </div>
 
         <div class="qna-label-row">
@@ -77,10 +77,10 @@
             비공개
           </label>
         </div>
-        <textarea id="questionText" name="questionText" rows="5" placeholder="예: 시민 혁명은 왜 근대 사회의 시작과 관련이 있나요?" required></textarea>
+        <textarea id="questionText" name="questionText" rows="5" maxlength="5000" placeholder="예: 시민 혁명은 왜 근대 사회의 시작과 관련이 있나요?" required></textarea>
 
         <label for="questionPassword">수정 비밀번호</label>
-        <input id="questionPassword" name="questionPassword" type="password" placeholder="나중에 질문을 수정할 때 사용합니다" required>
+        <input id="questionPassword" name="questionPassword" type="password" maxlength="128" placeholder="나중에 질문을 수정할 때 사용합니다" required>
 
         <button class="button primary" type="submit">질문 등록</button>
         <p id="qnaFormMessage" class="board-message" aria-live="polite"></p>
