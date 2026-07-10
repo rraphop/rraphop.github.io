@@ -11,9 +11,9 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0f2f4a">
-  <link rel="stylesheet" href="style.css?v=internal-fix-2026-07-10-02">
+  <link rel="stylesheet" href="style.css?v=visitor-loader-2026-07-10-01">
   <script defer src="qna-config.js?v=internal-fix-2026-07-10-02"></script>
-  <script defer src="script.js?v=internal-fix-2026-07-10-02"></script>
+  <script defer src="script.js?v=visitor-loader-2026-07-10-01"></script>
 </head>
 <body>
   <header class="site-header">
@@ -51,11 +51,17 @@
         <dl class="visitor-count-list">
           <div>
             <dt>오늘 방문자 수</dt>
-            <dd><span id="today-count" data-visitor-today>0</span>명</dd>
+            <dd aria-busy="true">
+              <span class="visitor-count-value is-loading" id="today-count" data-visitor-today role="status" aria-label="오늘 방문자 수 불러오는 중"></span>
+              <span class="visitor-count-unit">명</span>
+            </dd>
           </div>
           <div>
             <dt>총 방문자 수</dt>
-            <dd><span id="total-count" data-visitor-total>0</span>명</dd>
+            <dd aria-busy="true">
+              <span class="visitor-count-value is-loading" id="total-count" data-visitor-total role="status" aria-label="총 방문자 수 불러오는 중"></span>
+              <span class="visitor-count-unit">명</span>
+            </dd>
           </div>
         </dl>
       </aside>

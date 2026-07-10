@@ -197,9 +197,33 @@ function renderVisitorCounter(todayCount, totalCount) {
 
   const todayElement = visitorCounter.querySelector("#today-count, [data-visitor-today]");
   const totalElement = visitorCounter.querySelector("#total-count, [data-visitor-total]");
+  const countElements = [todayElement, totalElement].filter(Boolean);
+
+  countElements.forEach((element) => {
+    element.classList.remove("is-loading", "is-unavailable");
+    element.removeAttribute("role");
+    element.removeAttribute("aria-label");
+    element.closest("dd")?.setAttribute("aria-busy", "false");
+  });
+
   if (todayElement) todayElement.textContent = (Number(todayCount) || 0).toLocaleString("ko-KR");
   if (totalElement) totalElement.textContent = (Number(totalCount) || 0).toLocaleString("ko-KR");
   requestAnimationFrame(fitVisitorCounts);
+}
+
+function renderVisitorCounterError() {
+  if (!visitorCounter) return;
+
+  visitorCounter
+    .querySelectorAll("#today-count, #total-count, [data-visitor-today], [data-visitor-total]")
+    .forEach((element) => {
+      element.textContent = "—";
+      element.classList.remove("is-loading");
+      element.classList.add("is-unavailable");
+      element.setAttribute("role", "status");
+      element.setAttribute("aria-label", "방문자 수를 불러오지 못했습니다");
+      element.closest("dd")?.setAttribute("aria-busy", "false");
+    });
 }
 
 async function updateVisitorCounter() {
@@ -214,7 +238,7 @@ async function updateVisitorCounter() {
     renderVisitorCounter(data.today, data.total);
   } catch (error) {
     console.warn(error);
-    requestAnimationFrame(fitVisitorCounts);
+    renderVisitorCounterError();
   }
 }
 
