@@ -32,9 +32,10 @@ const DAILY_HEADERS = ['date', 'count'];
 const MONTHLY_HEADERS = ['month', 'count'];
 const COUNT_TIMEZONE = 'Asia/Seoul';
 const DAILY_KEEP_DAYS = 40;
+const RANKING_DATE_HEADER = '일자';
 const ACID_RANKING_HEADERS = [
   'id',
-  'createdAt',
+  RANKING_DATE_HEADER,
   'name',
   'score',
   'level',
@@ -44,7 +45,7 @@ const ACID_RANKING_LIMIT = 10;
 const HISTORY_CAUSE_RANKING_SHEET_NAME = '역사 추리왕 랭킹';
 const HISTORY_CAUSE_RANKING_HEADERS = [
   'id',
-  'createdAt',
+  RANKING_DATE_HEADER,
   'nickname',
   'score',
   'area',
@@ -912,10 +913,10 @@ function validateHistoryCauseRankingEntry_(entry, session) {
 
 function createAcidRanking_(params) {
   const group = normalizeAcidGroup_(params.group);
-  const now = new Date().toISOString();
+  const rankingDate = getTodayDateKey_();
   const entry = {
     id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-    createdAt: now,
+    date: rankingDate,
     name: sanitizePlayerName_(params.name),
     score: normalizeRankingNumber_(params.score, 0),
     level: normalizeRankingNumber_(params.level, 1),
@@ -928,7 +929,7 @@ function createAcidRanking_(params) {
     const session = consumeGameSession_(params.sessionToken, 'acid');
     validateAcidRankingEntry_(entry, session, group);
     const sheet = getAcidRankingSheet_(group);
-    sheet.appendRow(ACID_RANKING_HEADERS.map((header) => entry[header] ?? ''));
+    appendRankingEntry_(sheet, ACID_RANKING_HEADERS, entry);
     const groupEntries = listAcidRankingEntries_(group);
     const rankIndex = groupEntries.findIndex((item) => item.id === entry.id);
     return {
@@ -946,10 +947,10 @@ function listHistoryCauseRankings_() {
 }
 
 function createHistoryCauseRanking_(params) {
-  const now = new Date().toISOString();
+  const rankingDate = getTodayDateKey_();
   const entry = {
     id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-    createdAt: now,
+    date: rankingDate,
     nickname: sanitizePlayerName_(params.nickname || params.name),
     score: normalizeSignedRankingNumber_(params.score, 0),
     area: normalizeHistoryCauseArea_(params.area),
@@ -964,7 +965,7 @@ function createHistoryCauseRanking_(params) {
     const session = consumeGameSession_(params.sessionToken, 'historyCause');
     validateHistoryCauseRankingEntry_(entry, session);
     const sheet = getHistoryCauseRankingSheet_();
-    sheet.appendRow(HISTORY_CAUSE_RANKING_HEADERS.map((header) => entry[header] ?? ''));
+    appendRankingEntry_(sheet, HISTORY_CAUSE_RANKING_HEADERS, entry);
     const entries = listHistoryCauseRankingEntries_();
     const rankIndex = entries.findIndex((item) => item.id === entry.id);
     return {
@@ -1009,15 +1010,14 @@ function getAcidRankingSheet_(group) {
   const spreadsheet = getSpreadsheet_();
   const sheetName = ACID_RANKING_SHEET_NAMES[group];
   const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
-  ensureHeaders_(sheet, ACID_RANKING_HEADERS);
+  ensureRankingHeaders_(sheet, ACID_RANKING_HEADERS);
   return sheet;
 }
 
 function getHistoryCauseRankingSheet_() {
   const spreadsheet = getSpreadsheet_();
   const sheet = spreadsheet.getSheetByName(HISTORY_CAUSE_RANKING_SHEET_NAME) || spreadsheet.insertSheet(HISTORY_CAUSE_RANKING_SHEET_NAME);
-  ensureHeaders_(sheet, HISTORY_CAUSE_RANKING_HEADERS);
-  removeHeaderColumn_(sheet, 'date');
+  ensureRankingHeaders_(sheet, HISTORY_CAUSE_RANKING_HEADERS);
   return sheet;
 }
 
@@ -1055,15 +1055,29 @@ function ensureHeaders_(sheet, headers = HEADERS) {
   });
 }
 
-function removeHeaderColumn_(sheet, headerName) {
-  const lastColumn = sheet.getLastColumn();
-  if (lastColumn <= 0) return;
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-  for (let index = headers.length - 1; index >= 0; index -= 1) {
-    if (String(headers[index] || '') === headerName) {
-      sheet.deleteColumn(index + 1);
+function ensureRankingHeaders_(sheet, headers) {
+  if (sheet.getLastRow() > 0 && sheet.getLastColumn() > 0) {
+    const current = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (!current.includes(RANKING_DATE_HEADER)) {
+      const legacyDateIndex = current.findIndex((header) => header === 'createdAt' || header === 'date');
+      if (legacyDateIndex >= 0) {
+        sheet.getRange(1, legacyDateIndex + 1).setValue(RANKING_DATE_HEADER);
+      }
     }
   }
+
+  ensureHeaders_(sheet, headers);
+}
+
+function appendRankingEntry_(sheet, headers, entry) {
+  const map = getHeaderMap_(sheet);
+  const row = Array(sheet.getLastColumn()).fill('');
+  headers.forEach((header) => {
+    const columnIndex = map[header];
+    if (columnIndex == null) return;
+    row[columnIndex] = header === RANKING_DATE_HEADER ? entry.date || '' : entry[header] ?? '';
+  });
+  sheet.appendRow(row);
 }
 
 function ensureCounterHeaders_(sheet) {
@@ -1142,7 +1156,7 @@ function listAcidRankingEntries_(group) {
 function rowToAcidRankingEntry_(row, map) {
   return publicAcidRankingEntry_({
     id: String(row[map.id] || ''),
-    createdAt: row[map.createdAt] || '',
+    date: getRankingDateFromRow_(row, map),
     name: row[map.name] || '익명',
     score: row[map.score],
     level: row[map.level],
@@ -1153,7 +1167,7 @@ function rowToAcidRankingEntry_(row, map) {
 function publicAcidRankingEntry_(entry) {
   return {
     id: String(entry.id || ''),
-    createdAt: entry.createdAt || '',
+    date: normalizeRankingDate_(entry.date || entry.createdAt),
     name: sanitizePlayerName_(entry.name),
     score: normalizeRankingNumber_(entry.score, 0),
     level: normalizeRankingNumber_(entry.level, 1),
@@ -1166,7 +1180,7 @@ function sortAcidRankingEntries_(entries) {
     Number(b.score || 0) - Number(a.score || 0)
     || Number(b.level || 0) - Number(a.level || 0)
     || Number(b.survivalMs || 0) - Number(a.survivalMs || 0)
-    || getRankingCreatedAtValue_(a.createdAt) - getRankingCreatedAtValue_(b.createdAt)
+    || getRankingDateValue_(a.date) - getRankingDateValue_(b.date)
   ));
 }
 
@@ -1194,7 +1208,7 @@ function getHistoryCauseRankingGroups_() {
 function rowToHistoryCauseRankingEntry_(row, map) {
   return publicHistoryCauseRankingEntry_({
     id: String(row[map.id] || ''),
-    createdAt: row[map.createdAt] || '',
+    date: getRankingDateFromRow_(row, map),
     nickname: row[map.nickname] || '익명',
     score: row[map.score],
     area: row[map.area] || '전체',
@@ -1207,7 +1221,7 @@ function rowToHistoryCauseRankingEntry_(row, map) {
 function publicHistoryCauseRankingEntry_(entry) {
   return {
     id: String(entry.id || ''),
-    createdAt: entry.createdAt || '',
+    date: normalizeRankingDate_(entry.date || entry.createdAt),
     nickname: sanitizePlayerName_(entry.nickname || entry.name),
     score: normalizeSignedRankingNumber_(entry.score, 0),
     area: normalizeHistoryCauseArea_(entry.area),
@@ -1223,13 +1237,21 @@ function sortHistoryCauseRankingEntries_(entries) {
     || Number(b.correctCount || 0) - Number(a.correctCount || 0)
     || Number(b.answeredCount || 0) - Number(a.answeredCount || 0)
     || Number(b.maxCombo || 0) - Number(a.maxCombo || 0)
-    || getRankingCreatedAtValue_(a.createdAt) - getRankingCreatedAtValue_(b.createdAt)
+    || getRankingDateValue_(a.date) - getRankingDateValue_(b.date)
   ));
 }
 
-function getRankingCreatedAtValue_(value) {
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+function getRankingDateFromRow_(row, map) {
+  const dateIndex = map[RANKING_DATE_HEADER] ?? map.createdAt ?? map.date;
+  return dateIndex == null ? '' : row[dateIndex];
+}
+
+function normalizeRankingDate_(value) {
+  const dateKey = normalizeCountDateValue_(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : '';
+}
+
+function getRankingDateValue_(value) {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }

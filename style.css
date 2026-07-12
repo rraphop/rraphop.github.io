@@ -1177,6 +1177,13 @@ select {
   padding: 10px;
 }
 
+.acid-ranking-board th:nth-child(2),
+.acid-ranking-board td:nth-child(2),
+.acid-ranking-board th:last-child,
+.acid-ranking-board td:last-child {
+  white-space: nowrap;
+}
+
 .acid-ranking-status {
   grid-column: 1 / -1;
   margin: 0;

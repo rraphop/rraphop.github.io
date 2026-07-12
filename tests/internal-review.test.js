@@ -92,7 +92,8 @@ const appsContext = vm.createContext({
   },
   ScriptApp: { getScriptId: () => "test-script-id" },
   Utilities: {
-    getUuid: () => "12345678-1234-1234-1234-123456789abc"
+    getUuid: () => "12345678-1234-1234-1234-123456789abc",
+    formatDate: (date) => date.toISOString().slice(0, 10)
   }
 });
 
@@ -171,5 +172,25 @@ assert.doesNotThrow(() => evaluate(`validateHistoryCauseRankingEntry_(
   { area: "전체", score: -10, correctCount: 0, answeredCount: 1, maxCombo: 0 },
   { area: "전체", createdAt: Date.now() - 1000 }
 )`));
+
+assert.equal(evaluate('RANKING_DATE_HEADER'), "일자");
+assert.deepEqual(
+  JSON.parse(evaluate('JSON.stringify(ACID_RANKING_HEADERS)')),
+  ["id", "일자", "name", "score", "level", "survivalMs"]
+);
+assert.deepEqual(
+  JSON.parse(evaluate('JSON.stringify(HISTORY_CAUSE_RANKING_HEADERS)')),
+  ["id", "일자", "nickname", "score", "area", "correctCount", "answeredCount", "maxCombo"]
+);
+assert.equal(evaluate('normalizeRankingDate_("2026-07-13T01:02:03.000Z")'), "2026-07-13");
+assert.equal(evaluate('normalizeRankingDate_("")'), "");
+assert.match(
+  read("script.js"),
+  /<th>순위<\/th>\s*<th>일자<\/th>\s*<th>이름<\/th>\s*<th>점수<\/th>\s*<th>생존시간<\/th>/
+);
+assert.match(
+  historyHtml,
+  /<th>순위<\/th>\s*<th>일자<\/th>\s*<th>닉네임<\/th>\s*<th>점수<\/th>\s*<th>영역<\/th>\s*<th>풀이 수<\/th>/
+);
 
 console.log("Internal review tests passed.");

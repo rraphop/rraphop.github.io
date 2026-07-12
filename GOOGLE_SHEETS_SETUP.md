@@ -43,14 +43,16 @@ month, count
 자동 생성되는 `사회 산성비 랭킹`, `역사 산성비 랭킹` 시트 헤더:
 
 ```text
-id, createdAt, name, score, level, survivalMs
+id, 일자, name, score, level, survivalMs
 ```
 
 자동 생성되는 `역사 추리왕 랭킹` 시트 헤더:
 
 ```text
-id, createdAt, nickname, score, area, correctCount, answeredCount, maxCombo
+id, 일자, nickname, score, area, correctCount, answeredCount, maxCombo
 ```
+
+기존 랭킹 시트의 `createdAt` 또는 `date` 열은 자동으로 `일자` 열로 전환됩니다. 기존 행에 날짜 값이 없으면 빈 값을 유지하고, 새로 등록되는 기록부터 한국 시간 기준 `yyyy-MM-dd` 형식으로 저장합니다.
 
 ## 2. Apps Script 붙여넣기
 

@@ -1253,11 +1253,16 @@ function initAcidRainGame(root) {
     }
   }
 
-  function getAcidCreatedAtValue(value) {
-    const numeric = Number(value);
-    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  function getAcidRankingDateValue(value) {
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function formatRankingDate(value) {
+    const text = String(value || "").trim();
+    if (!text) return "-";
+    const matched = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return matched ? `${matched[1]}-${matched[2]}-${matched[3]}` : "-";
   }
 
   function sortAcidRankings(entries) {
@@ -1265,7 +1270,7 @@ function initAcidRainGame(root) {
       Number(b.score || 0) - Number(a.score || 0)
       || Number(b.level || 0) - Number(a.level || 0)
       || Number(b.survivalMs || 0) - Number(a.survivalMs || 0)
-      || getAcidCreatedAtValue(a.createdAt) - getAcidCreatedAtValue(b.createdAt)
+      || getAcidRankingDateValue(a.date) - getAcidRankingDateValue(b.date)
     ));
   }
 
@@ -1273,7 +1278,7 @@ function initAcidRainGame(root) {
     if (!entry || typeof entry !== "object") return null;
     return {
       id: String(entry.id || ""),
-      createdAt: entry.createdAt || "",
+      date: entry.date || entry["일자"] || entry.createdAt || "",
       name: getPlayerName(entry.name).slice(0, 12),
       score: Math.max(0, Math.round(Number(entry.score) || 0)),
       level: Math.max(1, Math.round(Number(entry.level) || 1)),
@@ -1315,9 +1320,9 @@ function initAcidRainGame(root) {
       ? sortedEntries.map((entry, index) => `
           <tr>
             <td>${index + 1}</td>
+            <td>${formatRankingDate(entry.date)}</td>
             <td>${escapeHTML(entry.name || "익명")}</td>
             <td>${Number(entry.score || 0)}</td>
-            <td>${Number(entry.level || 1)}</td>
             <td>${formatAcidTime(Number(entry.survivalMs || 0))}</td>
           </tr>
         `).join("")
@@ -1330,9 +1335,9 @@ function initAcidRainGame(root) {
           <thead>
             <tr>
               <th>순위</th>
+              <th>일자</th>
               <th>이름</th>
               <th>점수</th>
-              <th>단계</th>
               <th>생존시간</th>
             </tr>
           </thead>

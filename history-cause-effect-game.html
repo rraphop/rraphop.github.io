@@ -842,8 +842,13 @@
       padding: 9px;
     }
 
-    .ranking-board td:nth-child(2) {
+    .ranking-board td:nth-child(3) {
       font-weight: 900;
+    }
+
+    .ranking-board th:nth-child(2),
+    .ranking-board td:nth-child(2) {
+      white-space: nowrap;
     }
 
     .ranking-modal-note {
@@ -4138,7 +4143,8 @@
         area: gameState.area,
         correctCount: gameState.correctCount,
         answeredCount: gameState.answeredCount,
-        maxCombo: gameState.maxCombo
+        maxCombo: gameState.maxCombo,
+        date: getTodayDateKey()
       };
 
       showScreen("result");
@@ -4250,7 +4256,8 @@
           area: String(item.area || "전체"),
           correctCount: Number(item.correctCount) || 0,
           answeredCount: Number(item.answeredCount || item.questions || 0) || 0,
-          maxCombo: Number(item.maxCombo) || 0
+          maxCombo: Number(item.maxCombo) || 0,
+          date: String(item.date || item["일자"] || item.createdAt || "")
         }))
         .filter((item) => item.score || item.answeredCount || item.nickname);
     }
@@ -4282,6 +4289,22 @@
         || Number(b.correctCount || 0) - Number(a.correctCount || 0)
         || Number(b.answeredCount || 0) - Number(a.answeredCount || 0)
         || Number(b.maxCombo || 0) - Number(a.maxCombo || 0);
+    }
+
+    function getTodayDateKey() {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).formatToParts(new Date());
+      const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
+    }
+
+    function formatRankingDate(value) {
+      const matched = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return matched ? `${matched[1]}-${matched[2]}-${matched[3]}` : "-";
     }
 
     function openRankingModal(rankings = null) {
@@ -4332,12 +4355,13 @@
       const rows = normalizeRankingList(rankings).map((item, index) => `
         <tr>
           <td>${index + 1}</td>
+          <td>${formatRankingDate(item.date)}</td>
           <td>${escapeHTML(item.nickname)}</td>
           <td>${Number(item.score).toLocaleString("ko-KR")}</td>
           <td>${escapeHTML(item.area)}</td>
           <td>${Number(item.answeredCount || 0).toLocaleString("ko-KR")}</td>
         </tr>
-      `).join("") || '<tr><td colspan="5">아직 등록된 기록이 없습니다.</td></tr>';
+      `).join("") || '<tr><td colspan="6">아직 등록된 기록이 없습니다.</td></tr>';
 
       return `
         <section class="ranking-board">
@@ -4346,6 +4370,7 @@
             <thead>
               <tr>
                 <th>순위</th>
+                <th>일자</th>
                 <th>닉네임</th>
                 <th>점수</th>
                 <th>영역</th>
