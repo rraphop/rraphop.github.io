@@ -249,6 +249,10 @@ function handleRequest_(e) {
       case 'count':
         result = getVisitorCount_(params);
         break;
+      case 'visit':
+        // 방문자 카운터는 민감 정보가 없는 공개 집계이므로 모든 브라우저에서 동작하는 JSONP 요청을 허용합니다.
+        result = recordVisit_(params);
+        break;
       case 'acidRankings':
         result = listAcidRankings_();
         break;

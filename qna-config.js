@@ -1,4 +1,4 @@
-const QNA_API_URL = "https://script.google.com/macros/s/AKfycbyYOmtAsnBZwQkAw8ijJtO0h1sUv1ecRwxxyj3tWM_xXANrrlN9jD__MrR79F-0eVMq/exec";
+const QNA_API_URL = "https://script.google.com/macros/s/AKfycbyC_2FRrWkK27fLIJiaRFnDJDTeMjFVAulyKC1L6L1kgTy0PPcw-QhK21ApylKSpRpb/exec";
 
 window.QNA_CONFIG = {
   apiUrl: QNA_API_URL,
@@ -8,9 +8,10 @@ window.QNA_CONFIG = {
 
 (() => {
   const config = window.QNA_CONFIG;
-  const readActions = new Set([
+  const jsonpActions = new Set([
     "list",
     "count",
+    "visit",
     "acidRankings",
     "historyCauseRankings",
     "ping"
@@ -194,7 +195,7 @@ window.QNA_CONFIG = {
     if (!isConfigured()) {
       return Promise.reject(new Error(options.notConfiguredMessage || "데이터 연결 주소를 설정하세요."));
     }
-    return readActions.has(action)
+    return jsonpActions.has(action)
       ? requestByJsonp(action, params, options)
       : requestByBridge(action, params, options);
   }

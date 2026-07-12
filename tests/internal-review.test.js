@@ -117,7 +117,6 @@ for (const action of [
   "update",
   "answer",
   "delete",
-  "visit",
   "acidRankingCreate",
   "historyCauseRankingCreate",
   "setupSheets",
@@ -129,6 +128,16 @@ for (const action of [
   }).text`));
   assert.equal(publicMutation.ok, false, `${action} must not be publicly callable`);
 }
+
+evaluate(`recordVisit_ = function () {
+  return { success: true, today: 1, total: 282, date: "2026-07-13" };
+}`);
+const publicVisit = JSON.parse(evaluate(`handleRequest_({
+  parameter: { action: "visit", date: "2026-07-13" }
+}).text`));
+assert.equal(publicVisit.ok, true);
+assert.equal(publicVisit.today, 1);
+assert.equal(publicVisit.total, 282);
 
 const bridgeHtml = evaluate("createDataBridgePage_().html");
 assert.match(bridgeHtml, /social-history-data-bridge-request/);
