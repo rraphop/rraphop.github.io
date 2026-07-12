@@ -13,6 +13,7 @@ for (const file of ["script.js", "quiz-data.js", "qna-config.js"]) {
 }
 
 const historyHtml = read("history-cause-effect-game.html");
+const styleCss = read("style.css");
 let inlineScriptCount = 0;
 for (const match of historyHtml.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
   inlineScriptCount += 1;
@@ -192,5 +193,10 @@ assert.match(
   historyHtml,
   /<th>순위<\/th>\s*<th>일자<\/th>\s*<th>닉네임<\/th>\s*<th>점수<\/th>\s*<th>영역<\/th>\s*<th>풀이 수<\/th>/
 );
+assert.match(styleCss, /\.acid-ranking-board table\s*{[^}]*table-layout:\s*fixed;/s);
+assert.match(styleCss, /\.acid-ranking-board th:nth-child\(2\),[\s\S]*?width:\s*19%;/);
+assert.match(styleCss, /\.acid-ranking-board th:nth-child\(3\),[\s\S]*?width:\s*30%;/);
+assert.match(historyHtml, /\.ranking-grid\s*{[^}]*grid-template-columns:\s*repeat\(2,/s);
+assert.match(historyHtml, /\.ranking-board:first-child\s*{[^}]*grid-column:\s*1\s*\/\s*-1;/s);
 
 console.log("Internal review tests passed.");

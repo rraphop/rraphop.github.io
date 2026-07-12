@@ -1168,6 +1168,7 @@ select {
 }
 
 .acid-ranking-board table {
+  table-layout: fixed;
   background: #fff;
   font-size: 0.92rem;
 }
@@ -1182,6 +1183,35 @@ select {
 .acid-ranking-board th:last-child,
 .acid-ranking-board td:last-child {
   white-space: nowrap;
+}
+
+.acid-ranking-board th:nth-child(1),
+.acid-ranking-board td:nth-child(1) {
+  width: 10%;
+}
+
+.acid-ranking-board th:nth-child(2),
+.acid-ranking-board td:nth-child(2) {
+  width: 19%;
+  padding-right: 5px;
+  padding-left: 5px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.acid-ranking-board th:nth-child(3),
+.acid-ranking-board td:nth-child(3) {
+  width: 30%;
+}
+
+.acid-ranking-board th:nth-child(4),
+.acid-ranking-board td:nth-child(4) {
+  width: 14%;
+}
+
+.acid-ranking-board th:nth-child(5),
+.acid-ranking-board td:nth-child(5) {
+  width: 27%;
 }
 
 .acid-ranking-status {
