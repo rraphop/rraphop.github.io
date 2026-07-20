@@ -1,4 +1,4 @@
-const QNA_API_URL = "https://script.google.com/macros/s/AKfycbwWgXnavw7Zjb86ELvrv2Tk1Qd8UzHgdUqagx_LVM0E7nPu2fsSvRiGIXCfzbuHGvI/exec";
+const QNA_API_URL = "https://script.google.com/macros/s/AKfycbxCciK1LD2XzlYIumFvmHSLQFvmuFIWuQ1n9iJtHR08nXO42dp8Fut5N6VAVohdUY2_/exec";
 
 window.QNA_CONFIG = {
   apiUrl: QNA_API_URL,
@@ -156,7 +156,7 @@ window.QNA_CONFIG = {
       window.addEventListener("message", waitForBridgeReady);
       const url = new URL(config.apiUrl);
       url.searchParams.set("action", "bridge");
-      url.hash = bridgeChannel;
+      url.searchParams.set("channel", bridgeChannel);
       bridgeFrame.src = url.toString();
       document.body.appendChild(bridgeFrame);
     });

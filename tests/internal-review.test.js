@@ -141,8 +141,12 @@ assert.equal(publicVisit.ok, true);
 assert.equal(publicVisit.today, 1);
 assert.equal(publicVisit.total, 282);
 
-const bridgeHtml = evaluate("createDataBridgePage_().html");
+const bridgeHtml = evaluate(`createDataBridgePage_({
+  parameter: { channel: "bridge_test_channel" }
+}).html`);
 assert.match(bridgeHtml, /social-history-data-bridge-request/);
+assert.match(bridgeHtml, /const channel = "bridge_test_channel";/);
+assert.doesNotMatch(bridgeHtml, /window\.location\.hash/);
 assert.match(bridgeHtml, /const hostWindow = window\.parent\.parent;/);
 assert.match(bridgeHtml, /event\.source !== hostWindow/);
 assert.doesNotMatch(bridgeHtml, /event\.source !== window\.top/);
@@ -152,6 +156,8 @@ assert.match(bridgeHtml, /hostWindow\.postMessage/);
 const dataApiClient = read("qna-config.js");
 assert.match(dataApiClient, /bridgeWindow = event\.source/);
 assert.match(dataApiClient, /googleusercontent/);
+assert.match(dataApiClient, /url\.searchParams\.set\("channel", bridgeChannel\)/);
+assert.doesNotMatch(dataApiClient, /url\.hash = bridgeChannel/);
 
 const sessionToken = JSON.parse(evaluate(
   'JSON.stringify(createGameSession_("acid", { group: "social" }))'

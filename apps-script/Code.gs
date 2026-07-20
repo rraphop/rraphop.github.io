@@ -64,7 +64,7 @@ const QNA_PASSWORD_MAX_LENGTH = 128;
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'bridge') {
-    return createDataBridgePage_();
+    return createDataBridgePage_(e);
   }
   return handleRequest_(e);
 }
@@ -124,60 +124,61 @@ function getParams_(e) {
   return params;
 }
 
-function createDataBridgePage_() {
+function createDataBridgePage_(e) {
   const allowedOriginsJson = JSON.stringify(getAllowedWebOrigins_()).replace(/</g, '\\u003c');
-  const html = `<!doctype html>
-<html><head><meta charset="utf-8"></head><body><script>
-(function () {
-  "use strict";
-  const allowedOrigins = ${allowedOriginsJson};
-  const channel = decodeURIComponent(window.location.hash.slice(1));
-  // Apps Script wraps this HTML in its own sandbox iframe. The web page that
-  // created the bridge is therefore our grandparent, not always window.top
-  // (the history game itself is embedded in another same-origin iframe).
-  const hostWindow = window.parent.parent;
-
-  function isAllowedOrigin(origin) {
-    return allowedOrigins.includes(origin)
-      || /^http:\\/\\/(?:127\\.0\\.0\\.1|localhost)(?::\\d+)?$/.test(origin);
-  }
-
-  function respond(origin, id, payload) {
-    hostWindow.postMessage({
-      type: "social-history-data-bridge-response",
-      channel: channel,
-      id: id,
-      payload: payload
-    }, origin);
-  }
-
-  window.addEventListener("message", function (event) {
-    const message = event.data;
-    if (event.source !== hostWindow || !isAllowedOrigin(event.origin)) return;
-    if (!message || message.type !== "social-history-data-bridge-request") return;
-    if (message.channel !== channel || !message.id) return;
-
-    const requestOrigin = event.origin;
-    const requestId = message.id;
-    google.script.run
-      .withSuccessHandler(function (payload) {
-        respond(requestOrigin, requestId, payload);
-      })
-      .withFailureHandler(function (error) {
-        respond(requestOrigin, requestId, {
-          ok: false,
-          message: error && error.message ? error.message : "데이터 요청을 처리하지 못했습니다."
-        });
-      })
-      .handleBridgeRequest({ action: message.action, params: message.params || {} });
-  });
-
-  hostWindow.postMessage({
-    type: "social-history-data-bridge-ready",
-    channel: channel
-  }, "*");
-}());
-</script></body></html>`;
+  const bridgeChannel = String(e && e.parameter && e.parameter.channel || '');
+  const bridgeChannelJson = JSON.stringify(bridgeChannel).replace(/</g, '\\u003c');
+  const html = [
+    '<!doctype html>',
+    '<html><head><meta charset="utf-8"></head><body><script>',
+    '(function () {',
+    '  "use strict";',
+    '  const allowedOrigins = ' + allowedOriginsJson + ';',
+    '  const channel = ' + bridgeChannelJson + ';',
+    '  const hostWindow = window.parent.parent;',
+    '',
+    '  function isAllowedOrigin(origin) {',
+    '    return allowedOrigins.includes(origin)',
+    '      || /^http:\\/\\/(?:127\\.0\\.0\\.1|localhost)(?::\\d+)?$/.test(origin);',
+    '  }',
+    '',
+    '  function respond(origin, id, payload) {',
+    '    hostWindow.postMessage({',
+    '      type: "social-history-data-bridge-response",',
+    '      channel: channel,',
+    '      id: id,',
+    '      payload: payload',
+    '    }, origin);',
+    '  }',
+    '',
+    '  window.addEventListener("message", function (event) {',
+    '    const message = event.data;',
+    '    if (event.source !== hostWindow || !isAllowedOrigin(event.origin)) return;',
+    '    if (!message || message.type !== "social-history-data-bridge-request") return;',
+    '    if (message.channel !== channel || !message.id) return;',
+    '',
+    '    const requestOrigin = event.origin;',
+    '    const requestId = message.id;',
+    '    google.script.run',
+    '      .withSuccessHandler(function (payload) {',
+    '        respond(requestOrigin, requestId, payload);',
+    '      })',
+    '      .withFailureHandler(function (error) {',
+    '        respond(requestOrigin, requestId, {',
+    '          ok: false,',
+    '          message: error && error.message ? error.message : "데이터 요청을 처리하지 못했습니다."',
+    '        });',
+    '      })',
+    '      .handleBridgeRequest({ action: message.action, params: message.params || {} });',
+    '  });',
+    '',
+    '  hostWindow.postMessage({',
+    '    type: "social-history-data-bridge-ready",',
+    '    channel: channel',
+    '  }, "*");',
+    '}());',
+    '</script></body></html>'
+  ].join('\n');
 
   return HtmlService.createHtmlOutput(html)
     .setTitle('')
