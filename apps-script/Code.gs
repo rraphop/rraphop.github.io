@@ -135,7 +135,9 @@ function createDataBridgePage_(e) {
     '  "use strict";',
     '  const allowedOrigins = ' + allowedOriginsJson + ';',
     '  const channel = ' + bridgeChannelJson + ';',
-    '  const hostWindow = window.parent.parent;',
+    // Apps Script adds both its wrapper iframe and a nested user-code iframe.
+    // The page that created the bridge is therefore three levels above this document.
+    '  const hostWindow = window.parent.parent.parent;',
     '',
     '  function isAllowedOrigin(origin) {',
     '    return allowedOrigins.includes(origin)',

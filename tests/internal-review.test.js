@@ -147,11 +147,37 @@ const bridgeHtml = evaluate(`createDataBridgePage_({
 assert.match(bridgeHtml, /social-history-data-bridge-request/);
 assert.match(bridgeHtml, /const channel = "bridge_test_channel";/);
 assert.doesNotMatch(bridgeHtml, /window\.location\.hash/);
-assert.match(bridgeHtml, /const hostWindow = window\.parent\.parent;/);
+assert.match(bridgeHtml, /const hostWindow = window\.parent\.parent\.parent;/);
+assert.doesNotMatch(bridgeHtml, /const hostWindow = window\.parent\.parent;/);
 assert.match(bridgeHtml, /event\.source !== hostWindow/);
 assert.doesNotMatch(bridgeHtml, /event\.source !== window\.top/);
 assert.match(bridgeHtml, /https:\/\/rraphop\.github\.io/);
 assert.match(bridgeHtml, /hostWindow\.postMessage/);
+
+const bridgeScript = bridgeHtml.match(/<script>([\s\S]*?)<\/script>/)[1];
+const bridgeMessages = [];
+const bridgeHostWindow = {
+  postMessage(message, targetOrigin) {
+    bridgeMessages.push({ message, targetOrigin });
+  }
+};
+const bridgeWrapperWindow = { parent: bridgeHostWindow };
+const bridgeUserPanelWindow = { parent: bridgeWrapperWindow };
+const bridgeRuntimeWindow = {
+  parent: bridgeUserPanelWindow,
+  addEventListener() {}
+};
+vm.runInNewContext(bridgeScript, { window: bridgeRuntimeWindow });
+assert.deepEqual(
+  JSON.parse(JSON.stringify(bridgeMessages)),
+  [{
+    message: {
+      type: "social-history-data-bridge-ready",
+      channel: "bridge_test_channel"
+    },
+    targetOrigin: "*"
+  }]
+);
 
 const dataApiClient = read("qna-config.js");
 assert.match(dataApiClient, /bridgeWindow = event\.source/);
