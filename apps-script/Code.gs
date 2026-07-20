@@ -132,6 +132,10 @@ function createDataBridgePage_() {
   "use strict";
   const allowedOrigins = ${allowedOriginsJson};
   const channel = decodeURIComponent(window.location.hash.slice(1));
+  // Apps Script wraps this HTML in its own sandbox iframe. The web page that
+  // created the bridge is therefore our grandparent, not always window.top
+  // (the history game itself is embedded in another same-origin iframe).
+  const hostWindow = window.parent.parent;
 
   function isAllowedOrigin(origin) {
     return allowedOrigins.includes(origin)
@@ -139,7 +143,7 @@ function createDataBridgePage_() {
   }
 
   function respond(origin, id, payload) {
-    window.top.postMessage({
+    hostWindow.postMessage({
       type: "social-history-data-bridge-response",
       channel: channel,
       id: id,
@@ -149,7 +153,7 @@ function createDataBridgePage_() {
 
   window.addEventListener("message", function (event) {
     const message = event.data;
-    if (event.source !== window.top || !isAllowedOrigin(event.origin)) return;
+    if (event.source !== hostWindow || !isAllowedOrigin(event.origin)) return;
     if (!message || message.type !== "social-history-data-bridge-request") return;
     if (message.channel !== channel || !message.id) return;
 
@@ -168,7 +172,7 @@ function createDataBridgePage_() {
       .handleBridgeRequest({ action: message.action, params: message.params || {} });
   });
 
-  window.top.postMessage({
+  hostWindow.postMessage({
     type: "social-history-data-bridge-ready",
     channel: channel
   }, "*");

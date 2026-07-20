@@ -143,9 +143,11 @@ assert.equal(publicVisit.total, 282);
 
 const bridgeHtml = evaluate("createDataBridgePage_().html");
 assert.match(bridgeHtml, /social-history-data-bridge-request/);
+assert.match(bridgeHtml, /const hostWindow = window\.parent\.parent;/);
+assert.match(bridgeHtml, /event\.source !== hostWindow/);
+assert.doesNotMatch(bridgeHtml, /event\.source !== window\.top/);
 assert.match(bridgeHtml, /https:\/\/rraphop\.github\.io/);
-assert.match(bridgeHtml, /window\.top\.postMessage/);
-assert.doesNotMatch(bridgeHtml, /window\.parent\.postMessage/);
+assert.match(bridgeHtml, /hostWindow\.postMessage/);
 
 const dataApiClient = read("qna-config.js");
 assert.match(dataApiClient, /bridgeWindow = event\.source/);
