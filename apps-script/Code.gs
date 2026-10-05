@@ -1437,7 +1437,7 @@ function output_(payload, callback) {
 }
 
 // 프로그램 자료실: 실행 파일과 이미지는 링크만 저장합니다.
-const PROGRAM_HEADERS = ['id', 'createdAt', 'updatedAt', 'title', 'category', 'version', 'windows', 'summary', 'body', 'downloadUrl'];
+const PROGRAM_HEADERS = ['id', 'createdAt', 'updatedAt', 'title', 'category', 'version', 'windows', 'summary', 'body', 'downloadUrl', 'downloadName'];
 const PROGRAM_COMMENT_HEADERS = ['id', 'programId', 'createdAt', 'updatedAt', 'name', 'text', 'passwordHash', 'admin'];
 
 function getProgramSheet_(comments) {
@@ -1503,7 +1503,7 @@ function requireProgramAdmin_(params) {
 
 function validateProgram_(params) {
   const item = {};
-  const limits = { title: 100, category: 20, version: 40, windows: 80, summary: 240, body: 20000, downloadUrl: 2048 };
+  const limits = { title: 100, category: 20, version: 40, windows: 80, summary: 240, body: 20000, downloadUrl: 2048, downloadName: 128 };
   Object.keys(limits).forEach((key) => {
     item[key] = String(params[key] || '').trim();
     requireTextLength_(item[key], limits[key], key);
@@ -1512,9 +1512,21 @@ function validateProgram_(params) {
   requireValue_(item.body, '소개 내용을 입력하세요.');
   requireValue_(item.summary, '한 줄 소개를 입력하세요.');
   if (!['주식', '교무업무', '학생관리', '기타'].includes(item.category)) throw new Error('분류를 선택하세요.');
-  // GitHub 공개 배포 링크만 허용하며 사용자 정보, 다른 호스트, 공백은 거부합니다.
-  if (!/^https:\/\/(?:github\.com|raw\.githubusercontent\.com)\/[^\s<>"\\]+$/i.test(item.downloadUrl)) {
-    throw new Error('GitHub의 HTTPS 다운로드 주소를 입력하세요.');
+  // 홈페이지 파일은 같은 출처의 상대 주소로 저장하여 download 파일명이 적용되도록 합니다.
+  const absolute = item.downloadUrl.match(/^(https:\/\/[^/]+)(\/downloads\/.*)$/);
+  if (absolute && getAllowedWebOrigins_().includes(absolute[1])) item.downloadUrl = absolute[2];
+  const local = /^\/downloads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:zip|exe)$/i.test(item.downloadUrl);
+  if (!local && !/^https:\/\/(?:github\.com|raw\.githubusercontent\.com)\/[^\s<>"\\]+$/i.test(item.downloadUrl)) {
+    throw new Error('홈페이지의 /downloads/ 파일 주소 또는 GitHub의 HTTPS 다운로드 주소를 입력하세요.');
+  }
+  if (item.downloadName) {
+    if (!local) throw new Error('다운로드 파일명은 홈페이지의 /downloads/ 파일에만 지정할 수 있습니다.');
+    if (/[<>:"/\\|?*\u0000-\u001f]/.test(item.downloadName) || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(item.downloadName)) {
+      throw new Error('파일명에 사용할 수 없는 문자가 있습니다.');
+    }
+    if (!/\.(zip|exe)$/i.test(item.downloadName) || item.downloadName.split('.').pop().toLowerCase() !== item.downloadUrl.split('.').pop().toLowerCase()) {
+      throw new Error('다운로드 파일명의 확장자를 원본 파일과 같게 입력하세요.');
+    }
   }
   return item;
 }

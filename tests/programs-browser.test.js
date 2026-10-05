@@ -11,6 +11,11 @@ const root = path.resolve(__dirname, '..');
   const harness = createHarness();
   const server = http.createServer((req, res) => {
     const relative = new URL(req.url, 'http://localhost').pathname;
+    if (relative === '/downloads/teacher-note-v1.0.zip') {
+      res.setHeader('Content-Type', 'application/zip');
+      res.end(Buffer.from('PK\x05\x06' + '\x00'.repeat(18), 'binary'));
+      return;
+    }
     const file = path.resolve(root, '.' + relative);
     if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404).end(); return; }
     const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
@@ -105,9 +110,24 @@ const root = path.resolve(__dirname, '..');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Mobile editor overflow');
     await page.screenshot({ path: '/tmp/mysh-programs-editor-mobile.png', fullPage: true });
     await page.locator('#programForm [name="version"]').fill('1.1.0');
+    await page.locator('#programForm [name="downloadName"]').fill('교무수첩.zip');
+    await page.getByRole('button', { name: '게시글 저장' }).click();
+    // Admin password is still empty, so fill it before checking filename validation.
     await page.locator('#programForm [name="adminPassword"]').fill('admin-test');
     await page.getByRole('button', { name: '게시글 저장' }).click();
+    await page.locator('#editorMessage').filter({ hasText: 'Releases 링크는 파일명 항목을 비워 두세요.' }).waitFor();
+    await page.locator('#programForm [name="downloadUrl"]').fill('/downloads/teacher-note-v1.0.zip');
+    await page.getByRole('button', { name: '게시글 저장' }).click();
     await page.getByText('버전 1.1.0 · Windows 10 / 11', { exact: true }).waitFor();
+    const downloaded = page.waitForEvent('download');
+    await page.getByRole('link', { name: '프로그램 다운로드' }).click();
+    const download = await downloaded;
+    assert.equal(download.suggestedFilename(), '교무수첩.zip');
+    assert.equal(await download.failure(), null);
+    // Verify persistence after a fresh page load, then continue the existing delete flow.
+    await page.reload();
+    await page.getByText('다운로드 파일: 교무수첩.zip', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('link', { name: '프로그램 다운로드' }).getAttribute('download'), '교무수첩.zip');
     await page.locator('#programDetail').getByRole('button', { name: '삭제', exact: true }).click();
     await page.locator('#programDeleteForm [name="password"]').fill('admin-test');
     await page.locator('#programDeleteForm').getByRole('button', { name: '삭제', exact: true }).click();

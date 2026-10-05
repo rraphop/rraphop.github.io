@@ -52,7 +52,7 @@ const example = {
 };
 
 function run() {
-  const { call } = createHarness();
+  const { call, sheets } = createHarness();
   assert.equal(call('programList', {}, true).programs.length, 0);
   for (const action of ['programSave', 'programDelete', 'programCommentSave', 'programCommentDelete']) {
     assert.equal(call(action, example, true).ok, false, 'Mutations may not use the public endpoint');
@@ -93,14 +93,41 @@ function run() {
   assert.equal(call('programDelete', { id, adminPassword: 'admin-test' }).ok, true);
   assert.equal(call('programDetail', { id }, true).ok, false);
   assert.equal(call('programCommentDelete', { id: adminComment.id, adminPassword: 'admin-test' }).ok, false, 'Deleting a program removes its comments');
-  const rendering = { window: {}, document: { getElementById() { return null; } }, URL };
+  // Simulate an existing sheet without the new column; old programs must survive migration.
+  const sheet = sheets.get('프로그램 자료실');
+  sheet.rows[0].pop();
+  const legacy = call('programSave', example);
+  assert.equal(legacy.ok, true);
+  assert.equal(legacy.program.downloadName, '');
+  assert.ok(sheet.rows[0].includes('downloadName'));
+  const localProgram = { ...example, downloadUrl: '/downloads/teacher-note-v1.0.zip', downloadName: '교무수첩.zip' };
+  const local = call('programSave', localProgram);
+  assert.equal(local.ok, true);
+  assert.equal(call('programDetail', { id: local.program.id }, true).program.downloadName, '교무수첩.zip');
+  const absolute = call('programSave', { ...localProgram, downloadUrl: 'https://rraphop.github.io/downloads/teacher-note-v1.0.zip' });
+  assert.equal(absolute.program.downloadUrl, localProgram.downloadUrl);
+  assert.equal(call('programSave', { ...example, downloadName: '교무수첩.zip' }).ok, false, 'Cross-origin filename claims are rejected');
+  for (const downloadUrl of ['//evil.com/downloads/app.zip', '/downloads/../app.zip', '/downloads/%2e%2e/app.zip', '/downloads/app.html', 'https://evil.com/downloads/app.zip', '/downloads/app.zip?x=1', '/downloads/app.zip#x']) {
+    assert.equal(call('programSave', { ...localProgram, downloadUrl }).ok, false, downloadUrl);
+  }
+  for (const downloadName of ['교무수첩.exe', '../교무수첩.zip', 'CON.zip', '교무:수첩.zip', '교무수첩.zip\u0000']) {
+    assert.equal(call('programSave', { ...localProgram, downloadName }).ok, false, downloadName);
+  }
+  const rendering = { window: {}, document: { getElementById() { return null; } }, location: { origin: 'https://rraphop.github.io' }, URL };
   vm.runInNewContext(fs.readFileSync(path.join(root, 'programs.js'), 'utf8'), rendering);
-  const { bodyHtml, httpsUrl } = rendering.window.PROGRAM_RENDER;
+  const { bodyHtml, httpsUrl, downloadInfo, downloadNameError } = rendering.window.PROGRAM_RENDER;
   assert.ok(!bodyHtml('<script>alert(1)</script>').includes('<script>'));
   assert.ok(!bodyHtml('![x](javascript:alert(1))').includes('<img'));
   assert.ok(!bodyHtml('![x](https://user:password@example.com/image.png)').includes('<img'));
   assert.ok(bodyHtml('![설명](https://example.com/image.png)').includes('<img'));
   assert.equal(httpsUrl('https://github.com.evil.com/file', true), '');
+  assert.equal(downloadInfo(localProgram.downloadUrl).local, true);
+  assert.equal(downloadInfo('https://rraphop.github.io/downloads/teacher-note-v1.0.zip').url, localProgram.downloadUrl);
+  assert.equal(downloadInfo('//evil.com/downloads/file.zip').url, '');
+  assert.equal(downloadInfo('/downloads/../file.zip').url, '');
+  assert.equal(downloadNameError('교무수첩.zip', downloadInfo(localProgram.downloadUrl)), '');
+  assert.ok(downloadNameError('교무수첩.exe', downloadInfo(localProgram.downloadUrl)));
+  assert.ok(downloadNameError('교무수첩.zip', downloadInfo(example.downloadUrl)));
   console.log('Program board tests passed.');
 }
 if (require.main === module) run();

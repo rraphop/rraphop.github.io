@@ -15,7 +15,7 @@
   <script defer src="qna-config.js?v=programs-2026-10-06"></script>
   <script defer src="script.js?v=internal-fix-2026-07-10-02"></script>
   <link rel="stylesheet" href="programs.css?v=2026-10-06">
-  <script defer src="programs.js?v=2026-10-06"></script>
+  <script defer src="programs.js?v=2026-10-06-download-name"></script>
 </head>
 <body>
   <header class="site-header">
@@ -68,8 +68,10 @@
           <label>지원 환경<input name="windows" maxlength="80" placeholder="예: Windows 10 / 11"></label>
         </div>
         <label>한 줄 소개<input name="summary" required maxlength="240" placeholder="어떤 일을 도와주는 프로그램인가요?"></label>
-        <label>GitHub 다운로드 주소<input name="downloadUrl" type="url" required maxlength="2048" placeholder="https://github.com/사용자/저장소/releases/download/버전/파일.zip"></label>
-        <p class="program-help">GitHub Releases에 올린 EXE·ZIP 파일의 다운로드 링크를 붙여 넣으세요.</p>
+        <label>다운로드 주소<input name="downloadUrl" type="text" required maxlength="2048" placeholder="/downloads/teacher-note-v1.0.zip" aria-describedby="downloadHelp"></label>
+        <p class="program-help" id="downloadHelp">홈페이지에 올린 파일은 /downloads/영문파일명.zip 또는 .exe 주소를 입력하세요. 기존 GitHub Releases 링크도 사용할 수 있습니다.</p>
+        <label>다운로드 파일명 (선택)<input name="downloadName" maxlength="128" placeholder="예: 교무수첩.zip" aria-describedby="downloadNameHelp"></label>
+        <p class="program-help" id="downloadNameHelp">방문자가 저장할 한글 이름을 확장자까지 적으세요. 홈페이지의 /downloads/ 파일에만 적용되며, GitHub Releases 링크는 이 항목을 비워 두세요.</p>
         <label for="programBody">소개 내용</label>
         <p class="program-help" id="bodyHelp">사용 방법과 업데이트 내용을 자유롭게 적으세요. ‘## 제목’은 소제목으로 표시됩니다. 아래에서 이미지 주소를 넣으면 글 사이에 그림을 삽입할 수 있습니다.</p>
         <textarea id="programBody" name="body" rows="12" required maxlength="20000" aria-describedby="bodyHelp" placeholder="프로그램 소개와 사용 방법을 적어 주세요."></textarea>

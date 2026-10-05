@@ -11,6 +11,25 @@
       return url.href;
     } catch { return ""; }
   }
+  function downloadInfo(value) {
+    const raw = String(value || '').trim();
+    const localPath = /^\/downloads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:zip|exe)$/i;
+    if (localPath.test(raw)) return { url: raw, local: true };
+    try {
+      const match = raw.match(/^(https:\/\/[^/]+)(\/downloads\/.*)$/);
+      if (match && [location.origin, 'https://rraphop.github.io'].includes(match[1]) && localPath.test(match[2])) {
+        return { url: match[2], local: true };
+      }
+    } catch { /* Renderer tests may run without a browser location. */ }
+    return { url: httpsUrl(raw, true), local: false };
+  }
+  function downloadNameError(name, info) {
+    if (!name) return '';
+    if (!info.local) return '다운로드 파일명은 홈페이지의 /downloads/ 파일에만 지정할 수 있습니다. Releases 링크는 파일명 항목을 비워 두세요.';
+    if (name.length > 128 || /[<>:"/\\|?*\u0000-\u001f]/.test(name) || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name)) return '파일명에 사용할 수 없는 문자가 있거나 이름이 너무 깁니다.';
+    if (!/\.(zip|exe)$/i.test(name) || name.split('.').pop().toLowerCase() !== info.url.split('.').pop().toLowerCase()) return '다운로드 파일명의 확장자를 원본 파일과 같게 입력하세요. 예: 교무수첩.zip';
+    return '';
+  }
   function bodyHtml(body) {
     return String(body || "").split(/\r?\n/).map((line) => {
       const image = line.match(/^!\[([^\]\n]*)\]\((https:\/\/[^\s]+)\)$/);
@@ -21,7 +40,7 @@
       return line ? `<p>${escape(line)}</p>` : "<br>";
     }).join("");
   }
-  window.PROGRAM_RENDER = Object.freeze({ bodyHtml, httpsUrl });
+  window.PROGRAM_RENDER = Object.freeze({ bodyHtml, httpsUrl, downloadInfo, downloadNameError });
   if (!$('programList')) return;
   let programs = [], active = null, comments = [], page = 1, requestVersion = 0, deleteTarget = null;
   const pageSize = 8;
@@ -104,14 +123,18 @@
     });
   }
   function renderDetail() {
-    const url = httpsUrl(active.downloadUrl, true);
+    const info = downloadInfo(active.downloadUrl);
+    const url = info.url;
+    const name = String(active.downloadName || '').trim();
+    const downloadName = !downloadNameError(name, info) ? name : '';
+    const linkAttributes = info.local ? `download="${escape(downloadName)}"` : 'target="_blank" rel="noopener noreferrer"';
     $('programDetail').innerHTML = `
       <div class="program-toolbar"><button type="button" class="button secondary" data-action="back">← 목록</button><div class="program-actions"><button type="button" class="button secondary small" data-action="edit">관리자 수정</button><button type="button" class="button secondary small" data-action="delete">삭제</button></div></div>
       <span class="program-badge">${escape(active.category)}</span>
       <h2 class="program-detail-title">${escape(active.title)}</h2>
       <p class="program-muted">${escape(active.summary)}</p>
       <p class="program-meta">등록 ${escape(date(active.createdAt))} · 업데이트 ${escape(date(active.updatedAt))}</p>
-      <div class="program-download"><p>${escape(active.version ? `버전 ${active.version} · ` : '')}${escape(active.windows || 'Windows용 프로그램')}</p>${url ? `<a class="button primary" href="${escape(url)}" target="_blank" rel="noopener noreferrer">프로그램 다운로드 ↗</a>` : '<p>다운로드 주소를 확인해 주세요.</p>'}</div>
+      <div class="program-download"><p>${escape(active.version ? `버전 ${active.version} · ` : '')}${escape(active.windows || 'Windows용 프로그램')}</p>${downloadName ? `<p class="program-meta">다운로드 파일: ${escape(downloadName)}</p>` : ''}${url ? `<a class="button primary" href="${escape(url)}" ${linkAttributes}>프로그램 다운로드 ${info.local ? '↓' : '↗'}</a>` : '<p>다운로드 주소를 확인해 주세요.</p>'}</div>
       <div class="program-body">${bodyHtml(active.body)}</div>`;
     renderImages($('programDetail'));
     renderComments();
@@ -162,7 +185,7 @@
     ++requestVersion;
     form.reset();
     form.elements.id.value = '';
-    ['id', 'title', 'category', 'version', 'windows', 'summary', 'body', 'downloadUrl'].forEach((key) => {
+    ['id', 'title', 'category', 'version', 'windows', 'summary', 'body', 'downloadUrl', 'downloadName'].forEach((key) => {
       if (item) form.elements[key].value = item[key] || '';
     });
     $('editorTitle').textContent = item ? '프로그램 수정' : '프로그램 등록';
@@ -208,7 +231,12 @@
   form.onsubmit = async (event) => {
     event.preventDefault();
     const params = Object.fromEntries(new FormData(form));
-    if (!httpsUrl(params.downloadUrl, true)) { message('editorMessage', 'GitHub의 HTTPS 다운로드 주소를 입력하세요.', true); return; }
+    const info = downloadInfo(params.downloadUrl);
+    if (!info.url) { message('editorMessage', '홈페이지의 /downloads/ 파일 주소 또는 GitHub의 HTTPS 다운로드 주소를 입력하세요.', true); return; }
+    params.downloadName = params.downloadName.trim();
+    const nameError = downloadNameError(params.downloadName, info);
+    if (nameError) { message('editorMessage', nameError, true); return; }
+    params.downloadUrl = info.url;
     lockForm(form, true);
     $('closeEditor').disabled = true;
     message('editorMessage', '저장 중입니다…');
