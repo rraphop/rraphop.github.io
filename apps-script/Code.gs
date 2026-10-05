@@ -203,6 +203,18 @@ function handleBridgeRequest(request) {
   try {
     let result;
     switch (action) {
+      case 'programSave':
+        result = saveProgram_(params);
+        break;
+      case 'programDelete':
+        result = deleteProgram_(params);
+        break;
+      case 'programCommentSave':
+        result = saveProgramComment_(params);
+        break;
+      case 'programCommentDelete':
+        result = deleteProgramComment_(params);
+        break;
       case 'create':
         result = createQuestion_(params);
         break;
@@ -251,6 +263,12 @@ function handleRequest_(e) {
   try {
     let result;
     switch (action) {
+      case 'programList':
+        result = listPrograms_();
+        break;
+      case 'programDetail':
+        result = getProgramDetail_(params);
+        break;
       case 'list':
         result = listQuestions_();
         break;
@@ -825,7 +843,9 @@ function setupSheets_() {
       monthlySheet.getName(),
       socialRankingSheet.getName(),
       historyRankingSheet.getName(),
-      historyCauseRankingSheet.getName()
+      historyCauseRankingSheet.getName(),
+      getProgramSheet_(false).getName(),
+      getProgramSheet_(true).getName()
     ]
   };
 }
@@ -1414,4 +1434,186 @@ function output_(payload, callback) {
   const output = isValidCallback ? `${callback}(${json});` : json;
   const mimeType = isValidCallback ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON;
   return ContentService.createTextOutput(output).setMimeType(mimeType);
+}
+
+// 프로그램 자료실: 실행 파일과 이미지는 링크만 저장합니다.
+const PROGRAM_HEADERS = ['id', 'createdAt', 'updatedAt', 'title', 'category', 'version', 'windows', 'summary', 'body', 'downloadUrl'];
+const PROGRAM_COMMENT_HEADERS = ['id', 'programId', 'createdAt', 'updatedAt', 'name', 'text', 'passwordHash', 'admin'];
+
+function getProgramSheet_(comments) {
+  const book = getSpreadsheet_();
+  const name = comments ? '프로그램 댓글' : '프로그램 자료실';
+  const sheet = book.getSheetByName(name) || book.insertSheet(name);
+  ensureHeaders_(sheet, comments ? PROGRAM_COMMENT_HEADERS : PROGRAM_HEADERS);
+  return sheet;
+}
+
+function programRows_(comments) {
+  const sheet = getProgramSheet_(comments);
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows.shift() || [];
+  return rows.map((row, index) => {
+    const item = { rowIndex: index + 2 };
+    headers.forEach((key, i) => { item[key] = row[i] instanceof Date ? row[i].toISOString() : row[i]; });
+    return item;
+  }).filter((item) => item.id);
+}
+
+function publicProgram_(item, detail) {
+  const result = {};
+  PROGRAM_HEADERS.forEach((key) => {
+    if (detail || key !== 'body') result[key] = String(item[key] || '');
+  });
+  return result;
+}
+
+function publicProgramComment_(item) {
+  return {
+    id: String(item.id), programId: String(item.programId),
+    createdAt: String(item.createdAt), updatedAt: String(item.updatedAt),
+    name: String(item.name), text: String(item.text), admin: toBoolean_(item.admin)
+  };
+}
+
+function listPrograms_() {
+  return { programs: programRows_(false)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .map((item) => publicProgram_(item, false)) };
+}
+
+function findProgram_(id) {
+  requireValue_(id, '프로그램 ID가 없습니다.');
+  const item = programRows_(false).find((row) => row.id === String(id));
+  if (!item) throw new Error('게시글을 찾을 수 없습니다.');
+  return item;
+}
+
+function getProgramDetail_(params) {
+  const item = findProgram_(params.id);
+  return {
+    program: publicProgram_(item, true),
+    comments: programRows_(true).filter((row) => row.programId === item.id).map(publicProgramComment_)
+  };
+}
+
+function requireProgramAdmin_(params) {
+  requireTextLength_(params.adminPassword, QNA_PASSWORD_MAX_LENGTH, '관리자 비밀번호');
+  requireAdmin_(params.adminPassword);
+}
+
+function validateProgram_(params) {
+  const item = {};
+  const limits = { title: 100, category: 20, version: 40, windows: 80, summary: 240, body: 20000, downloadUrl: 2048 };
+  Object.keys(limits).forEach((key) => {
+    item[key] = String(params[key] || '').trim();
+    requireTextLength_(item[key], limits[key], key);
+  });
+  requireValue_(item.title, '프로그램 이름을 입력하세요.');
+  requireValue_(item.body, '소개 내용을 입력하세요.');
+  requireValue_(item.summary, '한 줄 소개를 입력하세요.');
+  if (!['주식', '교무업무', '학생관리', '기타'].includes(item.category)) throw new Error('분류를 선택하세요.');
+  // GitHub 공개 배포 링크만 허용하며 사용자 정보, 다른 호스트, 공백은 거부합니다.
+  if (!/^https:\/\/(?:github\.com|raw\.githubusercontent\.com)\/[^\s<>"\\]+$/i.test(item.downloadUrl)) {
+    throw new Error('GitHub의 HTTPS 다운로드 주소를 입력하세요.');
+  }
+  return item;
+}
+
+function writeProgramRow_(comments, item, rowIndex) {
+  const sheet = getProgramSheet_(comments);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const values = headers.map((key) => {
+    const value = item[key] == null ? '' : item[key];
+    // Sheets에서 사용자 입력을 수식으로 실행하지 않습니다.
+    return typeof value === 'string' && /^[=+@-]/.test(value) ? "'" + value : value;
+  });
+  const range = sheet.getRange(rowIndex || sheet.getLastRow() + 1, 1, 1, headers.length);
+  range.setNumberFormat('@');
+  range.setValues([values]);
+}
+
+function saveProgram_(params) {
+  requireProgramAdmin_(params);
+  const fields = validateProgram_(params);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const previous = params.id ? findProgram_(params.id) : null;
+    const now = new Date().toISOString();
+    const item = Object.assign({}, fields, {
+      id: previous ? previous.id : Utilities.getUuid(),
+      createdAt: previous ? previous.createdAt : now,
+      updatedAt: now
+    });
+    writeProgramRow_(false, item, previous && previous.rowIndex);
+    return { program: publicProgram_(item, true) };
+  } finally { lock.releaseLock(); }
+}
+
+function deleteProgram_(params) {
+  requireProgramAdmin_(params);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const item = findProgram_(params.id);
+    // 댓글을 먼저 삭제하여 중간 실패 시에도 재시도할 수 있습니다.
+    const comments = programRows_(true).filter((row) => row.programId === item.id);
+    const sheet = getProgramSheet_(true);
+    comments.reverse().forEach((row) => sheet.deleteRow(row.rowIndex));
+    getProgramSheet_(false).deleteRow(item.rowIndex);
+    return { deletedId: item.id };
+  } finally { lock.releaseLock(); }
+}
+
+function requireCommentOwner_(params, item) {
+  if (params.adminPassword) {
+    requireProgramAdmin_(params);
+  } else {
+    requireValue_(params.password, '댓글 비밀번호를 입력하세요.');
+    requireTextLength_(params.password, QNA_PASSWORD_MAX_LENGTH, '댓글 비밀번호');
+    if (toBoolean_(item.admin) || passwordHash_(params.password) !== item.passwordHash) {
+      throw new Error('댓글 비밀번호가 맞지 않습니다.');
+    }
+  }
+}
+
+function saveProgramComment_(params) {
+  requireValue_(params.text, '댓글 내용을 입력하세요.');
+  requireTextLength_(params.text, 2000, '댓글');
+  requireTextLength_(params.name, 40, '닉네임');
+  requireTextLength_(params.password, QNA_PASSWORD_MAX_LENGTH, '댓글 비밀번호');
+  const admin = Boolean(params.adminPassword);
+  if (admin) requireProgramAdmin_(params);
+  else requireValue_(params.password, '댓글 비밀번호를 입력하세요.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    findProgram_(params.programId);
+    const previous = params.id ? programRows_(true).find((row) => row.id === String(params.id) && row.programId === String(params.programId)) : null;
+    if (params.id && !previous) throw new Error('댓글을 찾을 수 없습니다.');
+    if (previous) requireCommentOwner_(params, previous);
+    const now = new Date().toISOString();
+    const item = {
+      id: previous ? previous.id : Utilities.getUuid(), programId: String(params.programId),
+      createdAt: previous ? previous.createdAt : now, updatedAt: now,
+      name: previous ? previous.name : (admin ? '관리자' : (String(params.name || '').trim() || '익명')),
+      text: String(params.text).trim(),
+      passwordHash: previous ? previous.passwordHash : (admin ? '' : passwordHash_(params.password)),
+      admin: previous ? toBoolean_(previous.admin) : admin
+    };
+    writeProgramRow_(true, item, previous && previous.rowIndex);
+    return { comment: publicProgramComment_(item) };
+  } finally { lock.releaseLock(); }
+}
+
+function deleteProgramComment_(params) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const item = programRows_(true).find((row) => row.id === String(params.id));
+    if (!item) throw new Error('댓글을 찾을 수 없습니다.');
+    requireCommentOwner_(params, item);
+    getProgramSheet_(true).deleteRow(item.rowIndex);
+    return { deletedId: item.id };
+  } finally { lock.releaseLock(); }
 }

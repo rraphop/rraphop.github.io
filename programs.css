@@ -1,0 +1,63 @@
+.programs-page [hidden] { display: none !important; }
+.programs-page { max-width: 1120px; }
+.program-toolbar, .program-filters, .program-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.program-toolbar { justify-content: space-between; margin-bottom: 20px; }
+.program-toolbar h2 { margin: 0; }
+.program-filters { flex: 1; }
+.program-filters select { width: auto; }
+.program-filters input { max-width: 320px; flex: 1; min-width: 130px; }
+.programs-page input, .programs-page select, .programs-page textarea { font: inherit; color: var(--ink); border: 1px solid #bac8c9; border-radius: 8px; padding: 11px 13px; background: white; min-width: 0; }
+.programs-page textarea { resize: vertical; }
+.programs-page :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.programs-page button { cursor: pointer; }
+.programs-page button:disabled { opacity: .6; cursor: wait; }
+.program-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.program-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 12px; transition: border-color .2s; overflow-wrap: anywhere; }
+.program-card:hover { border-color: var(--accent); }
+.program-card h2 { margin: 0; font-size: 1.35rem; }
+.program-card h2 a:hover { text-decoration: underline; }
+.program-card p { margin: 0; }
+.program-card .program-meta { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+.program-badge { display: inline-block; width: fit-content; border-radius: 6px; color: var(--accent-dark); background: #e5f1eb; padding: 3px 10px; font-size: .82rem; font-weight: 700; }
+.program-muted, .program-meta, .program-help { color: var(--muted); }
+.program-meta { font-size: .88rem; }
+.program-help { margin: -5px 0 0; font-size: .9rem; }
+.program-empty { padding: 56px 24px; text-align: center; border: 1px dashed #bdccca; border-radius: 16px; grid-column: 1 / -1; }
+.program-empty h2 { font-size: 1.25rem; }
+.program-panel { background: white; border: 1px solid var(--line); border-radius: 18px; padding: 32px; margin: 24px 0; overflow-wrap: anywhere; scroll-margin-top: 96px; }
+.program-detail-title { margin: 16px 0 10px; font-size: clamp(1.6rem, 4vw, 2.2rem); }
+.program-download { padding: 20px; background: var(--paper); border-radius: 12px; margin: 24px 0; }
+.program-download p { margin: 0 0 12px; }
+.program-body { line-height: 1.9; overflow-wrap: anywhere; }
+.program-body p { white-space: pre-wrap; }
+.program-body figure { margin: 24px 0; }
+.program-body img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 10px; }
+.program-body figcaption { color: var(--muted); margin-top: 8px; font-size: .9rem; }
+.program-body .image-error { padding: 20px; background: var(--paper); color: var(--muted); }
+.program-form { display: grid; gap: 16px; }
+.program-form label { display: grid; gap: 7px; font-weight: 700; }
+.program-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.program-image-tools { display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; align-items: end; padding: 18px; background: var(--paper); border-radius: 12px; }
+.program-form .program-check { display: flex; align-items: center; font-weight: 400; }
+.program-check input { width: 18px; height: 18px; }
+.program-form > button { justify-self: start; }
+#programPreview { padding: 16px; border: 1px solid var(--line); border-radius: 10px; }
+#programPreview summary { cursor: pointer; font-weight: 700; }
+.program-comment { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.program-comment p { white-space: pre-wrap; }
+.program-comment .program-actions { justify-content: flex-end; }
+#programCommentForm { margin-top: 28px; }
+.program-dialog { border: 1px solid var(--line); border-radius: 18px; width: min(480px, calc(100vw - 32px)); padding: 26px; color: var(--ink); }
+.program-dialog::backdrop { background: rgba(20, 35, 40, .45); }
+.program-dialog h2, .program-dialog p { margin: 0; }
+.programs-page .board-message:empty { display: none; }
+.programs-page .board-message.is-error { color: #ae302b; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 700px) {
+  .program-grid, .program-fields, .program-image-tools { grid-template-columns: 1fr; }
+  .program-panel { padding: 20px; }
+  .program-toolbar { align-items: stretch; }
+  .program-filters { flex-basis: 100%; }
+  .program-filters input { max-width: none; }
+  .program-toolbar > .button { align-self: flex-end; }
+}

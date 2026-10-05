@@ -232,5 +232,8 @@ assert.match(styleCss, /\.acid-ranking-board th:nth-child\(2\),[\s\S]*?width:\s*
 assert.match(styleCss, /\.acid-ranking-board th:nth-child\(3\),[\s\S]*?width:\s*30%;/);
 assert.match(historyHtml, /\.ranking-grid\s*{[^}]*grid-template-columns:\s*repeat\(2,/s);
 assert.match(historyHtml, /\.ranking-board:first-child\s*{[^}]*grid-column:\s*1\s*\/\s*-1;/s);
+assert.match(historyHtml, /openRankingModal\(saveResult\.rankings,\s*result\.area\);/);
+assert.match(historyHtml, /if \(area === "한국사"\) return renderRankingBoard\("한국사", rankingGroups\.korean\);/);
+assert.match(historyHtml, /if \(area === "세계사"\) return renderRankingBoard\("세계사", rankingGroups\.world\);/);
 
 console.log("Internal review tests passed.");

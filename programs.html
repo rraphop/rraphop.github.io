@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>프로그램 자료실 | 사회·역사 배움터</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0f2f4a">
+  <link rel="stylesheet" href="style.css?v=internal-fix-2026-07-10-02">
+  <script defer src="qna-config.js?v=programs-2026-10-06"></script>
+  <script defer src="script.js?v=internal-fix-2026-07-10-02"></script>
+  <link rel="stylesheet" href="programs.css?v=2026-10-06">
+  <script defer src="programs.js?v=2026-10-06"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="brand-mark">中</span><span>사회·역사 배움터</span></a>
+    <button class="menu-button" type="button" aria-label="메뉴 열기" aria-expanded="false">☰</button>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="intro.html">소개</a>
+      <a href="quiz.html">퀴즈</a>
+      <a href="game.html">게임</a>
+      <a href="qna.html">질문과 답변</a>
+      <a href="programs.html">프로그램 자료실</a>
+      <a href="curriculum.html">교육과정 안내</a>
+    </nav>
+  </header>
+
+  <main class="page programs-page">
+    <section class="page-heading">
+      <p class="eyebrow">PROGRAM LIBRARY</p>
+      <h1>프로그램 자료실</h1>
+      <p>직접 만든 Windows 프로그램을 공유합니다.<br>필요한 도구를 내려받고, 사용 경험과 개선 의견을 남겨 주세요.</p>
+    </section>
+
+    <p id="programStatus" class="board-message" role="status" aria-live="polite"></p>
+    <section id="programListSection" aria-label="프로그램 목록">
+      <div class="program-toolbar">
+        <div class="program-filters">
+          <label for="programCategory">분류</label>
+          <select id="programCategory"><option value="">전체</option><option>주식</option><option>교무업무</option><option>학생관리</option><option>기타</option></select>
+          <label class="sr-only" for="programSearch">프로그램 검색</label>
+          <input type="search" id="programSearch" placeholder="프로그램 검색" maxlength="100">
+        </div>
+        <button class="button primary" id="newProgram" type="button">관리자 글쓰기</button>
+      </div>
+      <p id="programCount" class="program-muted" aria-live="polite"></p>
+      <div id="programList" class="program-grid"></div>
+      <nav id="programPagination" class="question-pagination" aria-label="프로그램 목록 페이지"></nav>
+      <button id="retryPrograms" type="button" class="button secondary" hidden>다시 불러오기</button>
+    </section>
+
+    <section id="programDetail" class="program-panel" tabindex="-1" aria-label="프로그램 상세" hidden></section>
+
+    <section id="programEditor" class="program-panel" aria-labelledby="editorTitle" hidden>
+      <div class="program-toolbar"><h2 id="editorTitle">프로그램 등록</h2><button type="button" class="button secondary" id="closeEditor">취소</button></div>
+      <form id="programForm" class="program-form">
+        <input type="hidden" name="id">
+        <div class="program-fields">
+          <label>프로그램 이름<input name="title" required maxlength="100" placeholder="프로그램 이름"></label>
+          <label>분류<select name="category"><option>주식</option><option>교무업무</option><option>학생관리</option><option>기타</option></select></label>
+          <label>버전<input name="version" maxlength="40" placeholder="예: 1.0.0"></label>
+          <label>지원 환경<input name="windows" maxlength="80" placeholder="예: Windows 10 / 11"></label>
+        </div>
+        <label>한 줄 소개<input name="summary" required maxlength="240" placeholder="어떤 일을 도와주는 프로그램인가요?"></label>
+        <label>GitHub 다운로드 주소<input name="downloadUrl" type="url" required maxlength="2048" placeholder="https://github.com/사용자/저장소/releases/download/버전/파일.zip"></label>
+        <p class="program-help">GitHub Releases에 올린 EXE·ZIP 파일의 다운로드 링크를 붙여 넣으세요.</p>
+        <label for="programBody">소개 내용</label>
+        <p class="program-help" id="bodyHelp">사용 방법과 업데이트 내용을 자유롭게 적으세요. ‘## 제목’은 소제목으로 표시됩니다. 아래에서 이미지 주소를 넣으면 글 사이에 그림을 삽입할 수 있습니다.</p>
+        <textarea id="programBody" name="body" rows="12" required maxlength="20000" aria-describedby="bodyHelp" placeholder="프로그램 소개와 사용 방법을 적어 주세요."></textarea>
+        <div class="program-image-tools">
+          <label>이미지 주소<input id="programImageUrl" type="url" placeholder="https://…/screenshot.png" maxlength="2048"></label>
+          <label>이미지 설명<input id="programImageAlt" maxlength="150" placeholder="예: 학생 관리 화면"></label>
+          <button id="insertProgramImage" class="button secondary" type="button">그림 삽입</button>
+        </div>
+        <p class="program-help">GitHub 등에 공개로 올린 이미지의 HTTPS 주소를 사용하세요. 파일 보기 페이지가 아닌 이미지 자체의 주소가 필요합니다.</p>
+        <details id="programPreview"><summary>소개글 미리보기</summary><div id="programPreviewBody" class="program-body"></div></details>
+        <label>관리자 비밀번호<input name="adminPassword" type="password" required maxlength="128" autocomplete="off" placeholder="기존 질문 게시판의 관리자 비밀번호"></label>
+        <p id="editorMessage" class="board-message" role="status"></p>
+        <button type="submit" class="button primary">게시글 저장</button>
+      </form>
+    </section>
+
+    <section id="programFeedback" class="program-panel" aria-labelledby="feedbackTitle" hidden>
+      <h2 id="feedbackTitle">댓글과 피드백</h2>
+      <p class="program-muted">사용 후기, 오류 제보, 개선 아이디어를 남겨 주세요.</p>
+      <div id="programComments"></div>
+      <form id="programCommentForm" class="program-form">
+        <input type="hidden" name="id">
+        <h3 id="commentFormTitle">댓글 남기기</h3>
+        <div class="program-fields">
+          <label>닉네임<input name="name" maxlength="40" placeholder="미입력 시 익명"></label>
+          <label><span id="commentPasswordLabel">댓글 비밀번호</span><input name="password" type="password" required maxlength="128" autocomplete="off" placeholder="수정·삭제에 사용합니다"></label>
+        </div>
+        <label class="program-check"><input name="asAdmin" type="checkbox">관리자 답글 / 관리</label>
+        <label>댓글 내용<textarea name="text" rows="4" required maxlength="2000" placeholder="의견을 남겨 주세요."></textarea></label>
+        <p id="commentMessage" class="board-message" role="status"></p>
+        <div class="program-actions"><button type="submit" class="button primary">댓글 저장</button><button type="button" id="cancelCommentEdit" class="button secondary" hidden>수정 취소</button></div>
+      </form>
+    </section>
+
+    <dialog id="programDeleteDialog" class="program-dialog">
+      <form id="programDeleteForm" class="program-form">
+        <h2 id="deleteTitle">삭제 확인</h2><p id="deleteDescription"></p>
+        <label class="program-check" id="deleteAdminOption"><input name="asAdmin" type="checkbox">관리자 권한으로 삭제</label>
+        <label><span id="deletePasswordLabel">비밀번호</span><input name="password" type="password" required maxlength="128" autocomplete="off"></label>
+        <p id="deleteMessage" class="board-message" role="status"></p>
+        <div class="program-actions"><button class="button danger" type="submit">삭제</button><button id="cancelDelete" class="button secondary" type="button">취소</button></div>
+      </form>
+    </dialog>
+  </main>
+  <footer class="site-footer">
+    <p>사회·역사 배움터 | 중학교 수업 보조 학습용</p>
+  </footer>
+</body>
+</html>

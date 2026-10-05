@@ -1,4 +1,4 @@
-const QNA_API_URL = "https://script.google.com/macros/s/AKfycbzdAa37qCRj5_HPkX8Vkjr0su68PVUZfjx-K5cEN0ZWxZqRJSs4wWR-3Zi1XwKiCica/exec";
+const QNA_API_URL = "https://script.google.com/macros/s/AKfycbz0Ip3aJaAailKcmDU4QsOoHOAkCB1v4JCT3zLn3ITeVB0Nl5j0T0aiuV5wbIXfF1Tf/exec";
 
 window.QNA_CONFIG = {
   apiUrl: QNA_API_URL,
@@ -10,6 +10,8 @@ window.QNA_CONFIG = {
   const config = window.QNA_CONFIG;
   const jsonpActions = new Set([
     "list",
+    "programList",
+    "programDetail",
     "count",
     "visit",
     "acidRankings",

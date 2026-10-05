@@ -989,6 +989,7 @@
       <a href="quiz.html">퀴즈</a>
       <a href="game.html" aria-current="page">게임</a>
       <a href="qna.html">질문과 답변</a>
+      <a href="programs.html">프로그램 자료실</a>
       <a href="curriculum.html">교육과정 안내</a>
     </nav>
   </header>
@@ -3849,6 +3850,7 @@
 
     const rankingContent = document.querySelector("#rankingContent");
     const rankingModal = document.querySelector("#rankingModal");
+    const rankingModalTitle = document.querySelector("#rankingModalTitle");
     const rankingModalPanel = rankingModal.querySelector(".ranking-modal-panel");
     const rankingModalBackdrop = document.querySelector("#rankingModalBackdrop");
     const rankingCloseButton = document.querySelector("#rankingCloseButton");
@@ -4163,6 +4165,7 @@
         const saveResult = await saveRankingRecord(result);
         if (sequence !== rankingSaveSequence) return;
         setRankingSaveMessage(saveResult.message);
+        openRankingModal(saveResult.rankings, result.area);
       } catch (error) {
         if (sequence !== rankingSaveSequence) return;
         setRankingSaveMessage(error.message || "랭킹 자동 등록에 실패했습니다.", "error");
@@ -4268,8 +4271,7 @@
 
     function normalizeRankingGroups(rankings) {
       if (Array.isArray(rankings)) {
-        const normalized = normalizeRankingList(rankings);
-        return createRankingGroupsFromList(normalized);
+        return createRankingGroupsFromList(rankings);
       }
 
       return {
@@ -4311,10 +4313,14 @@
       return matched ? `${matched[1]}-${matched[2]}-${matched[3]}` : "-";
     }
 
-    function openRankingModal(rankings = null) {
+    function openRankingModal(rankings = null, area = null) {
       const initialRankings = typeof Event !== "undefined" && rankings instanceof Event ? null : rankings;
+      const rankingArea = normalizeRankingArea(area);
+      rankingModalTitle.textContent = rankingArea
+        ? `역사 추리왕 ${rankingArea} 랭킹`
+        : "역사 추리왕 랭킹";
       rankingModal.hidden = false;
-      renderRanking(initialRankings);
+      renderRanking(initialRankings, rankingArea);
       window.requestAnimationFrame(() => {
         rankingModalPanel.focus();
       });
@@ -4324,7 +4330,7 @@
       rankingModal.hidden = true;
     }
 
-    async function renderRanking(initialRankings = null) {
+    async function renderRanking(initialRankings = null, area = null) {
       rankingContent.innerHTML = `<div class="empty-state">랭킹을 불러오는 중입니다.</div>`;
 
       let rankingGroups = normalizeRankingGroups(initialRankings || []);
@@ -4347,12 +4353,26 @@
 
       rankingContent.innerHTML = `
         <div class="ranking-grid">
-          ${renderRankingBoard("전체", rankingGroups.overall)}
-          ${renderRankingBoard("한국사", rankingGroups.korean)}
-          ${renderRankingBoard("세계사", rankingGroups.world)}
+          ${renderRankingBoards(rankingGroups, area)}
         </div>
         <p class="ranking-modal-note">${escapeHTML(note)}</p>
       `;
+    }
+
+    function normalizeRankingArea(area) {
+      return area === "전체" || area === "한국사" || area === "세계사" ? area : null;
+    }
+
+    function renderRankingBoards(rankingGroups, area = null) {
+      if (area === "전체") return renderRankingBoard("전체", rankingGroups.overall);
+      if (area === "한국사") return renderRankingBoard("한국사", rankingGroups.korean);
+      if (area === "세계사") return renderRankingBoard("세계사", rankingGroups.world);
+
+      return [
+        renderRankingBoard("전체", rankingGroups.overall),
+        renderRankingBoard("한국사", rankingGroups.korean),
+        renderRankingBoard("세계사", rankingGroups.world)
+      ].join("");
     }
 
     function renderRankingBoard(title, rankings) {
