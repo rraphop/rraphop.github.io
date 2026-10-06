@@ -21,6 +21,10 @@
 .program-badge { display: inline-block; width: fit-content; border-radius: 6px; color: var(--accent-dark); background: #e5f1eb; padding: 3px 10px; font-size: .82rem; font-weight: 700; }
 .program-muted, .program-meta, .program-help { color: var(--muted); }
 .program-meta { font-size: .88rem; }
+.program-stats { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: .88rem; }
+.program-stats strong { color: var(--accent-dark); font-variant-numeric: tabular-nums; }
+.program-download .program-download-note { margin: 10px 0 0; font-size: .82rem; color: var(--muted); }
+#programStatsMessage:empty { display: none; }
 .program-help { margin: -5px 0 0; font-size: .9rem; }
 .program-empty { padding: 56px 24px; text-align: center; border: 1px dashed #bdccca; border-radius: 16px; grid-column: 1 / -1; }
 .program-empty h2 { font-size: 1.25rem; }

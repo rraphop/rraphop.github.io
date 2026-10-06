@@ -12,10 +12,10 @@
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0f2f4a">
   <link rel="stylesheet" href="style.css?v=internal-fix-2026-07-10-02">
-  <script defer src="qna-config.js?v=programs-2026-10-06"></script>
-  <script defer src="script.js?v=internal-fix-2026-07-10-02"></script>
-  <link rel="stylesheet" href="programs.css?v=2026-10-06">
-  <script defer src="programs.js?v=2026-10-06-download-name"></script>
+  <script defer src="qna-config.js?v=connection-2026-10-06"></script>
+  <script defer src="script.js?v=connection-2026-10-06"></script>
+  <link rel="stylesheet" href="programs.css?v=2026-10-06-stats">
+  <script defer src="programs.js?v=connection-2026-10-06"></script>
 </head>
 <body>
   <header class="site-header">
@@ -43,7 +43,7 @@
       <div class="program-toolbar">
         <div class="program-filters">
           <label for="programCategory">분류</label>
-          <select id="programCategory"><option value="">전체</option><option>주식</option><option>교무업무</option><option>학생관리</option><option>기타</option></select>
+          <select id="programCategory"><option value="">전체</option><option>업무</option><option>수업</option><option>기타</option></select>
           <label class="sr-only" for="programSearch">프로그램 검색</label>
           <input type="search" id="programSearch" placeholder="프로그램 검색" maxlength="100">
         </div>
@@ -63,7 +63,7 @@
         <input type="hidden" name="id">
         <div class="program-fields">
           <label>프로그램 이름<input name="title" required maxlength="100" placeholder="프로그램 이름"></label>
-          <label>분류<select name="category"><option>주식</option><option>교무업무</option><option>학생관리</option><option>기타</option></select></label>
+          <label>분류<select name="category"><option>업무</option><option>수업</option><option>기타</option></select></label>
           <label>버전<input name="version" maxlength="40" placeholder="예: 1.0.0"></label>
           <label>지원 환경<input name="windows" maxlength="80" placeholder="예: Windows 10 / 11"></label>
         </div>

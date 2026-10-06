@@ -239,28 +239,16 @@ async function updateVisitorCounter() {
       return;
     }
 
-    const visitResultPromise = visitorApiRequest("visit", { date: todayKey }).then(
-      (data) => ({ data, error: null }),
-      (error) => ({ data: null, error })
-    );
-
+    // 방문 등록 응답에 최신 합계가 포함되므로 count를 동시에 보내지 않습니다.
     try {
-      const countData = await visitorApiRequest("count", { date: todayKey });
-      renderVisitorCounter(countData.today, countData.total);
-    } catch (countError) {
-      const visitResult = await visitResultPromise;
-      if (!visitResult.data) throw countError;
-      markVisitorCounted(visitResult.data.date || todayKey);
-      renderVisitorCounter(visitResult.data.today, visitResult.data.total);
-      return;
-    }
-
-    const visitResult = await visitResultPromise;
-    if (visitResult.data) {
-      markVisitorCounted(visitResult.data.date || todayKey);
-      renderVisitorCounter(visitResult.data.today, visitResult.data.total);
-    } else {
-      console.warn(visitResult.error);
+      const data = await visitorApiRequest("visit", { date: todayKey });
+      markVisitorCounted(data.date || todayKey);
+      renderVisitorCounter(data.today, data.total);
+    } catch (visitError) {
+      // 방문 등록은 중복 집계를 피하려고 재전송하지 않고, 조회만 다시 시도합니다.
+      const data = await visitorApiRequest("count", { date: todayKey });
+      renderVisitorCounter(data.today, data.total);
+      console.warn(visitError);
     }
   } catch (error) {
     console.warn(error);

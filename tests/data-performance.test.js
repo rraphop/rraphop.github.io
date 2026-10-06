@@ -1,0 +1,83 @@
+'use strict';
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const { createHarness, example } = require('./programs.test');
+const harness = createHarness();
+const { call, metrics, cache, book, evaluate } = harness;
+const resetMetrics = () => { for (const key of Object.keys(metrics)) metrics[key] = 0; };
+const id = call('programSave', example).program.id;
+resetMetrics();
+call('programList', {}, true);
+const coldReads = metrics.reads;
+resetMetrics();
+assert.equal(call('programList', {}, true).programs.length, 1);
+assert.equal(metrics.reads, 0, 'Repeated program lists must avoid Sheets calls');
+call('programDetail', { id }, true);
+resetMetrics();
+call('programDetail', { id }, true);
+assert.equal(metrics.reads, 0, 'Repeated public details must use the cache');
+call('programSave', { ...example, id, title: '변경된 제목' });
+assert.equal(call('programList', {}, true).programs[0].title, '변경된 제목');
+assert.equal(call('programDetail', { id }, true).program.title, '변경된 제목');
+resetMetrics();
+call('programTrack', { id, metric: 'view', eventId: crypto.randomUUID() }, true);
+assert.equal(metrics.writtenCells, 1, 'Tracking must write one cell, not the full article');
+assert.equal(metrics.opens, 1, 'A request opens the spreadsheet only once');
+assert.equal(metrics.fullReads, 0, 'Known program locations avoid reading every article body');
+call('programCommentSave', { programId: id, text: '새 댓글', password: 'secret' });
+assert.equal(call('programDetail', { id }, true).comments.length, 1, 'Comments invalidate public detail cache');
+call('programDelete', { id, adminPassword: 'admin-test' });
+assert.equal(call('programList', {}, true).programs.length, 0);
+assert.equal(call('programDetail', { id }, true).ok, false);
+const privateQuestion = call('create', { text: 'PRIVATE-SENTINEL', password: 'PASSWORD-SENTINEL', private: true }).question;
+assert.ok(privateQuestion);
+call('list', {}, true);
+resetMetrics();
+call('list', {}, true);
+assert.equal(metrics.reads, 0);
+for (const value of cache.values()) {
+  assert.ok(!value.includes('PRIVATE-SENTINEL'));
+  assert.ok(!value.includes('PASSWORD-SENTINEL'));
+  assert.ok(!value.includes('passwordHash'));
+}
+// A read that finishes after an invalidation cannot repopulate the current cache version.
+evaluate("cachedPublicData_('race', 'list', 10, () => { invalidatePublicData_('race'); return { value: 'old' }; })");
+assert.equal(evaluate("cachedPublicData_('race', 'list', 10, () => ({ value: 'new' })).value"), 'new');
+// Warm counter requests use one A:B read. Duplicate dates and legacy offsets retain totals.
+evaluate("getTodayDateKey_ = () => '2026-10-06'");
+const counter = book.insertSheet('count');
+counter.appendRow(['date', 'count']);
+counter.appendRow(['2026-10-05', 10]);
+counter.appendRow(['2026-10-06', 3]);
+counter.appendRow(['2026-10-06', 2]);
+cache.set('COUNTER_READY_V2_' + evaluate('COUNTER_DEBUG_VERSION'), '1');
+resetMetrics();
+let result = call('count', {}, true);
+assert.equal(result.today, 5); assert.equal(result.total, 15);
+assert.equal(metrics.reads, 1); assert.equal(metrics.fullReads, 0); assert.equal(metrics.flushes, 0);
+resetMetrics();
+call('count', {}, true);
+assert.equal(metrics.reads, 0, 'Repeated count reads use cache');
+result = call('visit', {}, true);
+assert.equal(result.today, 6); assert.equal(result.total, 16);
+assert.equal(metrics.reads, 1); assert.equal(metrics.writtenCells, 1); assert.equal(metrics.flushes, 1);
+assert.equal(call('count', {}, true).total, 16, 'A visit invalidates cached totals');
+evaluate("getTodayDateKey_ = () => '2026-10-07'");
+result = call('count', {}, true);
+assert.equal(result.today, 0); assert.equal(result.total, 16);
+result = call('visit', {}, true);
+assert.equal(result.today, 1); assert.equal(result.total, 17);
+assert.equal(counter.rows.length, 5);
+// Cached row positions are verified after rows move.
+const first = call('programSave', { ...example, title: 'first' }).program;
+const second = call('programSave', { ...example, title: 'second' }).program;
+call('programDetail', { id: second.id }, true);
+call('programDelete', { id: first.id, adminPassword: 'admin-test' });
+assert.equal(call('programDetail', { id: second.id }, true).program.title, 'second');
+for (const action of ['acidRankings', 'historyCauseRankings']) {
+  call(action, {}, true);
+  resetMetrics();
+  call(action, {}, true);
+  assert.equal(metrics.reads, 0, `${action} must cache public rankings`);
+}
+console.log(`Data performance tests passed: program list ${coldReads} → 0 Sheets reads on cache hit; counter 1 range read; tracking 1 cell write.`);

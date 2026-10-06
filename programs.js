@@ -3,6 +3,10 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  function programCategory(value) {
+    if (['업무', '교무업무', '학생관리'].includes(value)) return '업무';
+    return value === '수업' ? '수업' : '기타';
+  }
   function httpsUrl(value, download = false) {
     try {
       const url = new URL(value);
@@ -40,14 +44,48 @@
       return line ? `<p>${escape(line)}</p>` : "<br>";
     }).join("");
   }
-  window.PROGRAM_RENDER = Object.freeze({ bodyHtml, httpsUrl, downloadInfo, downloadNameError });
+  window.PROGRAM_RENDER = Object.freeze({ bodyHtml, httpsUrl, downloadInfo, downloadNameError, programCategory });
   if (!$('programList')) return;
+  let listLoaded = false;
   let programs = [], active = null, comments = [], page = 1, requestVersion = 0, deleteTarget = null;
   const pageSize = 8;
   const form = $('programForm');
   const commentForm = $('programCommentForm');
   const deleteForm = $('programDeleteForm');
   const api = (action, params = {}) => window.DATA_API.request(action, params);
+  const lastDownloadClicks = new Map();
+  const knownStats = new Map();
+  const formatCount = (value) => value != null && value !== '' && Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value).toLocaleString('ko-KR') : '—';
+  function statsHtml(item) {
+    return `<p class="program-stats" data-program-stats="${escape(item.id)}"><span>조회 <strong data-metric="viewCount">${formatCount(item.viewCount)}</strong></span><span title="자료실의 다운로드 버튼 클릭 횟수">다운로드 <strong data-metric="downloadCount">${formatCount(item.downloadCount)}</strong></span></p>`;
+  }
+  function updateStats(id, stats) {
+    // 조회/다운로드 응답이 뒤바뀌어 도착해도 이미 표시한 횟수가 줄지 않습니다.
+    const items = [...programs.filter((item) => item.id === id), ...(active?.id === id ? [active] : [])];
+    const latest = {};
+    for (const key of ['viewCount', 'downloadCount']) {
+      const value = Number(stats[key]);
+      if (!Number.isSafeInteger(value) || value < 0) continue;
+      latest[key] = Math.max(value, Number(knownStats.get(id)?.[key]) || 0, ...items.map((item) => Number(item[key]) || 0));
+      items.forEach((item) => { item[key] = latest[key]; });
+    }
+    knownStats.set(id, latest);
+    document.querySelectorAll('[data-program-stats]').forEach((node) => {
+      if (node.dataset.programStats !== id) return;
+      Object.entries(latest).forEach(([key, value]) => { node.querySelector(`[data-metric="${key}"]`).textContent = formatCount(value); });
+    });
+  }
+  async function trackProgram(id, metric) {
+    try {
+      const eventId = window.crypto.randomUUID();
+      const result = await api('programTrack', { id, metric, eventId });
+      updateStats(id, result.stats);
+      if (active?.id === id && $('programStatsMessage')) $('programStatsMessage').textContent = '';
+    } catch {
+      // 집계 실패는 본문 열람이나 파일 다운로드를 막지 않습니다.
+      if (active?.id === id && $('programStatsMessage')) $('programStatsMessage').textContent = '횟수를 갱신하지 못했습니다. 표시된 수치는 최근 집계입니다.';
+    }
+  }
   const date = (value) => {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleDateString("ko-KR");
@@ -89,6 +127,7 @@
         <h2><a href="#${encodeURIComponent(item.id)}">${escape(item.title)}</a></h2>
         <p class="program-muted">${escape(item.summary)}</p>
         <p class="program-meta">${escape(item.version ? `v${item.version} · ` : '')}${escape(item.windows || 'Windows')}<br>업데이트 ${escape(date(item.updatedAt))}</p>
+        ${statsHtml(item)}
         <a href="#${encodeURIComponent(item.id)}" class="button secondary">소개 및 다운로드 →</a>
       </article>`).join('') : `<div class="program-empty"><h2>${programs.length ? '검색 결과가 없습니다.' : '아직 등록된 프로그램이 없습니다.'}</h2><p>${programs.length ? '다른 검색어나 분류를 선택해 주세요.' : '새로운 프로그램이 등록되면 이곳에서 만나볼 수 있습니다.'}</p></div>`;
     const nav = $('programPagination');
@@ -109,7 +148,14 @@
   async function loadList() {
     $('retryPrograms').hidden = true;
     const payload = await api('programList');
-    programs = payload.programs;
+    programs = payload.programs.map((item) => {
+      const merged = { ...item, category: programCategory(item.category) };
+      for (const key of ['viewCount', 'downloadCount']) {
+        if (knownStats.get(item.id)?.[key] != null) merged[key] = Math.max(Number(item[key]) || 0, knownStats.get(item.id)[key]);
+      }
+      return merged;
+    });
+    listLoaded = true;
     renderList();
   }
   function renderImages(container) {
@@ -134,7 +180,9 @@
       <h2 class="program-detail-title">${escape(active.title)}</h2>
       <p class="program-muted">${escape(active.summary)}</p>
       <p class="program-meta">등록 ${escape(date(active.createdAt))} · 업데이트 ${escape(date(active.updatedAt))}</p>
-      <div class="program-download"><p>${escape(active.version ? `버전 ${active.version} · ` : '')}${escape(active.windows || 'Windows용 프로그램')}</p>${downloadName ? `<p class="program-meta">다운로드 파일: ${escape(downloadName)}</p>` : ''}${url ? `<a class="button primary" href="${escape(url)}" ${linkAttributes}>프로그램 다운로드 ${info.local ? '↓' : '↗'}</a>` : '<p>다운로드 주소를 확인해 주세요.</p>'}</div>
+      ${statsHtml(active)}
+      <p id="programStatsMessage" class="program-meta" role="status"></p>
+      <div class="program-download"><p>${escape(active.version ? `버전 ${active.version} · ` : '')}${escape(active.windows || 'Windows용 프로그램')}</p>${downloadName ? `<p class="program-meta">다운로드 파일: ${escape(downloadName)}</p>` : ''}${url ? `<a class="button primary" data-program-download href="${escape(url)}" ${linkAttributes}>프로그램 다운로드 ${info.local ? '↓' : '↗'}</a><p class="program-download-note">다운로드수는 이 버튼을 누른 횟수입니다.</p>` : '<p>다운로드 주소를 확인해 주세요.</p>'}</div>
       <div class="program-body">${bodyHtml(active.body)}</div>`;
     renderImages($('programDetail'));
     renderComments();
@@ -162,7 +210,20 @@
     resetComment();
     message('programStatus');
     const id = selectedId();
-    if (!id) { active = null; display('list'); return; }
+    if (!id) {
+      active = null;
+      display('list');
+      if (!listLoaded) {
+        message('programStatus', '자료실을 불러오는 중입니다…');
+        try {
+          await loadList();
+          if (version === requestVersion) message('programStatus');
+        } catch (error) {
+          if (version === requestVersion) showListError(error);
+        }
+      }
+      return;
+    }
     active = null;
     display('detail');
     $('programDetail').textContent = '프로그램을 불러오는 중입니다…';
@@ -170,10 +231,11 @@
     try {
       const payload = await api('programDetail', { id });
       if (version !== requestVersion) return;
-      active = payload.program;
+      active = { ...payload.program, category: programCategory(payload.program.category) };
       comments = payload.comments;
       renderDetail();
       display('detail');
+      void trackProgram(id, 'view');
     } catch (error) {
       if (version !== requestVersion) return;
       display('list');
@@ -202,7 +264,20 @@
     route();
   };
   $('programCategory').onchange = $('programSearch').oninput = () => { page = 1; renderList(); };
+  function recordDownloadClick(event) {
+    if (event.target.closest('[data-program-download]') && active) {
+      const now = Date.now();
+      if (now - (lastDownloadClicks.get(active.id) || 0) >= 1500) {
+        lastDownloadClicks.set(active.id, now);
+        void trackProgram(active.id, 'download');
+      }
+    }
+  }
+  $('programDetail').addEventListener('auxclick', (event) => {
+    if (event.button === 1) recordDownloadClick(event);
+  });
   $('programDetail').onclick = (event) => {
+    recordDownloadClick(event);
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (action === 'back') { setHash(''); route(); }
     if (action === 'edit') editProgram(active);
@@ -244,7 +319,7 @@
       const payload = await api('programSave', params);
       form.reset();
       if (active?.id !== payload.program.id) comments = [];
-      active = payload.program;
+      active = { ...payload.program, category: programCategory(payload.program.category) };
       setHash(active.id);
       resetComment();
       renderDetail();
@@ -341,18 +416,16 @@
     } catch (error) { message('deleteMessage', error.message, true); }
     finally { lockForm(deleteForm, false); }
   };
+  function showListError(error) {
+    message('programStatus', `자료실을 불러오지 못했습니다. ${error.message}`, true);
+    if (!programs.length) $('programList').innerHTML = '<div class="program-empty"><h2>자료실 연결을 확인해 주세요.</h2><p>연결이 일시적으로 지연될 수 있습니다. 다시 불러오기를 눌러 주세요.</p></div>';
+    $('retryPrograms').hidden = false;
+  }
   async function initialize() {
-    const version = requestVersion;
-    message('programStatus', '자료실을 불러오는 중입니다…');
-    try {
-      await loadList();
-      message('programStatus');
-      if (version === requestVersion) await route();
-    } catch (error) {
-      message('programStatus', `자료실을 불러오지 못했습니다. ${error.message}`, true);
-      $('programList').innerHTML = '<div class="program-empty"><h2>자료실 연결을 확인해 주세요.</h2><p>잠시 후 다시 불러와 주세요. 관리자는 자료실 기능이 포함된 Apps Script 배포 버전을 확인해 주세요.</p></div>';
-      $('retryPrograms').hidden = false;
-    }
+    listLoaded = false;
+    $('retryPrograms').hidden = true;
+    // 직접 글을 열면 목록 응답을 기다리지 않습니다. 목록은 돌아올 때 읽습니다.
+    await route();
   }
   $('retryPrograms').onclick = initialize;
   window.addEventListener('hashchange', route);

@@ -62,6 +62,42 @@ const QNA_TEXT_MAX_LENGTH = 5000;
 const QNA_ANSWER_MAX_LENGTH = 5000;
 const QNA_PASSWORD_MAX_LENGTH = 128;
 
+// 요청 안에서는 문서/시트/헤더를 재사용하고, 공개 응답만 짧게 캐시합니다.
+let dataRequestMemo_ = { sheets: new Map(), headers: new Map(), spreadsheet: null };
+function resetDataRequestMemo_() {
+  dataRequestMemo_ = { sheets: new Map(), headers: new Map(), spreadsheet: null };
+}
+function cacheGet_(key) {
+  try { return CacheService.getScriptCache().get(key); } catch { return null; }
+}
+function cachePut_(key, value, seconds) {
+  try { CacheService.getScriptCache().put(key, value, seconds); } catch { /* 캐시 장애는 시트 요청을 막지 않습니다. */ }
+}
+function invalidatePublicData_(group) {
+  cachePut_(`DATA_REV_V2_${group}`, Utilities.getUuid(), 21600);
+}
+function cachedPublicData_(group, itemKey, ttl, read) {
+  const revision = cacheGet_(`DATA_REV_V2_${group}`) || '0';
+  const key = `DATA_READ_V2_${group}_${revision}_${itemKey}`;
+  const cached = cacheGet_(key);
+  if (cached) {
+    try { return JSON.parse(cached); } catch { /* 다시 읽습니다. */ }
+  }
+  const result = read();
+  const json = JSON.stringify(result);
+  // CacheService의 항목 크기 한도보다 충분히 작을 때만 저장합니다.
+  if (json.length <= 20000) cachePut_(key, json, ttl);
+  return result;
+}
+function requestSheet_(name, prepare) {
+  if (dataRequestMemo_.sheets.has(name)) return dataRequestMemo_.sheets.get(name);
+  const book = getSpreadsheet_();
+  const sheet = book.getSheetByName(name) || book.insertSheet(name);
+  prepare(sheet);
+  dataRequestMemo_.sheets.set(name, sheet);
+  return sheet;
+}
+
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'bridge') {
     return createDataBridgePage_(e);
@@ -74,6 +110,7 @@ function doPost(e) {
 }
 
 function setupSheets() {
+  resetDataRequestMemo_();
   return setupSheets_();
 }
 
@@ -197,6 +234,7 @@ function getAllowedWebOrigins_() {
 }
 
 function handleBridgeRequest(request) {
+  resetDataRequestMemo_();
   const action = String(request && request.action || '');
   const params = Object.assign({}, request && request.params ? request.params : {});
 
@@ -249,6 +287,10 @@ function handleBridgeRequest(request) {
         throw new Error('허용되지 않은 데이터 변경 요청입니다.');
     }
 
+    if (['create', 'update', 'answer', 'delete'].includes(action)) invalidatePublicData_('qna');
+    if (['programSave', 'programDelete', 'programCommentSave', 'programCommentDelete'].includes(action)) invalidatePublicData_('programs');
+    if (action === 'acidRankingCreate') invalidatePublicData_('acid');
+    if (action === 'historyCauseRankingCreate') invalidatePublicData_('history');
     result.ok = true;
     return result;
   } catch (error) {
@@ -257,6 +299,7 @@ function handleBridgeRequest(request) {
 }
 
 function handleRequest_(e) {
+  resetDataRequestMemo_();
   const params = getParams_(e);
   const action = params.action || 'list';
 
@@ -264,26 +307,31 @@ function handleRequest_(e) {
     let result;
     switch (action) {
       case 'programList':
-        result = listPrograms_();
+        result = cachedPublicData_('programs', 'list', 10, listPrograms_);
         break;
       case 'programDetail':
-        result = getProgramDetail_(params);
+        requireTextLength_(params.id, 80, '프로그램 ID');
+        result = cachedPublicData_('programs', `detail_${params.id}`, 10, () => getProgramDetail_(params));
+        break;
+      case 'programTrack':
+        // 방문자 카운터와 같은 공개 집계이며, 횟수는 서버에서만 1씩 증가합니다.
+        result = trackProgram_(params);
         break;
       case 'list':
-        result = listQuestions_();
+        result = cachedPublicData_('qna', 'list', 10, listQuestions_);
         break;
       case 'count':
-        result = getVisitorCount_(params);
+        result = cachedPublicData_('counter', getTodayDateKey_(), 5, () => getVisitorCount_(params));
         break;
       case 'visit':
         // 방문자 카운터는 민감 정보가 없는 공개 집계이므로 모든 브라우저에서 동작하는 JSONP 요청을 허용합니다.
         result = recordVisit_(params);
         break;
       case 'acidRankings':
-        result = listAcidRankings_();
+        result = cachedPublicData_('acid', 'list', 15, listAcidRankings_);
         break;
       case 'historyCauseRankings':
-        result = listHistoryCauseRankings_();
+        result = cachedPublicData_('history', 'list', 15, listHistoryCauseRankings_);
         break;
       case 'ping':
         result = { message: 'QNA data API is ready.' };
@@ -304,7 +352,7 @@ function listQuestions_() {
   const rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) return { questions: [] };
 
-  const map = getHeaderMap_(sheet);
+  const map = rememberHeaders_(sheet, rows[0]);
   const questions = rows
     .slice(1)
     .map((row) => rowToQuestion_(row, map))
@@ -452,9 +500,8 @@ function getVisitorCount_(params) {
   lock.waitLock(10000);
   try {
     const sheet = getCounterSheet_();
-    const total = readCounterTotal_(sheet);
-    const todayInfo = readCounterToday_(sheet);
-    return buildCounterResponse_(total, todayInfo, currentDate);
+    const state = counterSnapshot_(sheet, currentDate);
+    return buildCounterResponse_(state.total, { today: state.today }, currentDate);
   } finally {
     lock.releaseLock();
   }
@@ -470,13 +517,37 @@ function recordVisit_(params) {
   lock.waitLock(10000);
   try {
     const sheet = getCounterSheet_();
-    incrementCounterVisit_(sheet, currentDate);
-    const total = readCounterTotal_(sheet);
-    const todayInfo = readCounterToday_(sheet);
-    return buildCounterResponse_(total, todayInfo, currentDate);
+    const state = counterSnapshot_(sheet, currentDate);
+    if (state.rowIndex) {
+      sheet.getRange(state.rowIndex, 2).setValue(state.rowCount + 1);
+    } else {
+      sheet.appendRow([Utilities.parseDate(currentDate, COUNT_TIMEZONE, 'yyyy-MM-dd'), 1]);
+      sheet.getRange(sheet.getLastRow(), 1, 1, 2).setNumberFormats([['yyyy-mm-dd', '0']]);
+    }
+    SpreadsheetApp.flush();
+    invalidatePublicData_('counter');
+    return buildCounterResponse_(state.total + 1, { today: state.today + 1 }, currentDate);
   } finally {
     lock.releaseLock();
   }
+}
+
+// A:B 한 번 읽기로 합계와 오늘 행을 함께 찾습니다. 수식 재계산을 기다리지 않습니다.
+function counterSnapshot_(sheet, currentDate) {
+  const lastRow = sheet.getLastRow();
+  const rows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 2).getValues() : [];
+  const state = { total: getCounterTotalOffset_(), today: 0, rowIndex: 0, rowCount: 0 };
+  rows.forEach((row, index) => {
+    const date = normalizeCounterDateKey_(row[0]);
+    if (!date) return;
+    const count = normalizeCounterNumber_(row[1], 0);
+    state.total += count;
+    if (date === currentDate) {
+      state.today += count;
+      if (!state.rowIndex) { state.rowIndex = index + 2; state.rowCount = count; }
+    }
+  });
+  return state;
 }
 
 function getTodayVisitCount(todayDate) {
@@ -962,7 +1033,10 @@ function createAcidRanking_(params) {
     return {
       entry: publicAcidRankingEntry_(entry),
       rank: rankIndex >= 0 && rankIndex < ACID_RANKING_LIMIT ? rankIndex + 1 : null,
-      rankings: getAcidRankingGroups_()
+      rankings: {
+        [group]: groupEntries,
+        [group === 'social' ? 'history' : 'social']: listAcidRankingEntries_(group === 'social' ? 'history' : 'social')
+      }
     };
   } finally {
     lock.releaseLock();
@@ -998,7 +1072,7 @@ function createHistoryCauseRanking_(params) {
     return {
       entry: publicHistoryCauseRankingEntry_(entry),
       rank: rankIndex >= 0 && rankIndex < HISTORY_CAUSE_RANKING_LIMIT ? rankIndex + 1 : null,
-      rankings: getHistoryCauseRankingGroups_()
+      rankings: historyCauseRankingGroupsFromEntries_(entries)
     };
   } finally {
     lock.releaseLock();
@@ -1006,17 +1080,17 @@ function createHistoryCauseRanking_(params) {
 }
 
 function getSheet_() {
-  const spreadsheet = getSpreadsheet_();
-  const sheet = spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.insertSheet(SHEET_NAME);
-  ensureHeaders_(sheet);
-  return sheet;
+  return requestSheet_(SHEET_NAME, (sheet) => ensureHeaders_(sheet));
 }
 
 function getCounterSheet_() {
-  const spreadsheet = getSpreadsheet_();
-  const sheet = spreadsheet.getSheetByName(COUNTER_SHEET_NAME) || spreadsheet.insertSheet(COUNTER_SHEET_NAME);
-  ensureCounterHeaders_(sheet);
-  return sheet;
+  return requestSheet_(COUNTER_SHEET_NAME, (sheet) => {
+    const key = `COUNTER_READY_V2_${COUNTER_DEBUG_VERSION}`;
+    if (sheet.getLastRow() === 0 || !cacheGet_(key)) {
+      ensureCounterHeaders_(sheet);
+      cachePut_(key, '1', 300);
+    }
+  });
 }
 
 function getDailySheet_() {
@@ -1034,21 +1108,16 @@ function getMonthlySheet_() {
 }
 
 function getAcidRankingSheet_(group) {
-  const spreadsheet = getSpreadsheet_();
   const sheetName = ACID_RANKING_SHEET_NAMES[group];
-  const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
-  ensureRankingHeaders_(sheet, ACID_RANKING_HEADERS);
-  return sheet;
+  return requestSheet_(sheetName, (sheet) => ensureRankingHeaders_(sheet, ACID_RANKING_HEADERS));
 }
 
 function getHistoryCauseRankingSheet_() {
-  const spreadsheet = getSpreadsheet_();
-  const sheet = spreadsheet.getSheetByName(HISTORY_CAUSE_RANKING_SHEET_NAME) || spreadsheet.insertSheet(HISTORY_CAUSE_RANKING_SHEET_NAME);
-  ensureRankingHeaders_(sheet, HISTORY_CAUSE_RANKING_HEADERS);
-  return sheet;
+  return requestSheet_(HISTORY_CAUSE_RANKING_SHEET_NAME, (sheet) => ensureRankingHeaders_(sheet, HISTORY_CAUSE_RANKING_HEADERS));
 }
 
 function getSpreadsheet_() {
+  if (dataRequestMemo_.spreadsheet) return dataRequestMemo_.spreadsheet;
   const props = PropertiesService.getScriptProperties();
   const spreadsheetId = props.getProperty('QNA_SPREADSHEET_ID');
   const spreadsheet = spreadsheetId
@@ -1059,27 +1128,26 @@ function getSpreadsheet_() {
     throw new Error('데이터 저장소를 찾을 수 없습니다. 데이터 연결 설정을 확인하세요.');
   }
 
+  dataRequestMemo_.spreadsheet = spreadsheet;
   return spreadsheet;
 }
 
 function ensureHeaders_(sheet, headers = HEADERS) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
+    rememberHeaders_(sheet, headers);
     return;
   }
-
-  const lastColumn = Math.max(sheet.getLastColumn(), headers.length);
-  const current = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].filter(String);
-  if (current.length === 0) {
+  const lastColumn = sheet.getLastColumn();
+  const current = sheet.getRange(1, 1, 1, Math.max(lastColumn, headers.length)).getValues()[0];
+  if (!current.some(Boolean)) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    rememberHeaders_(sheet, headers);
     return;
   }
-
-  headers.forEach((header) => {
-    if (!current.includes(header)) {
-      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(header);
-    }
-  });
+  const missing = headers.filter((header) => !current.includes(header));
+  if (missing.length) sheet.getRange(1, lastColumn + 1, 1, missing.length).setValues([missing]);
+  rememberHeaders_(sheet, current.slice(0, lastColumn).concat(missing));
 }
 
 function ensureRankingHeaders_(sheet, headers) {
@@ -1141,17 +1209,24 @@ function ensureCounterHeaders_(sheet) {
 }
 
 function getHeaderMap_(sheet) {
+  if (dataRequestMemo_.headers.has(sheet)) return dataRequestMemo_.headers.get(sheet);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  return headers.reduce((map, header, index) => {
+  return rememberHeaders_(sheet, headers);
+}
+
+function rememberHeaders_(sheet, headers) {
+  const map = headers.reduce((map, header, index) => {
     if (header) map[header] = index;
     return map;
   }, {});
+  dataRequestMemo_.headers.set(sheet, map);
+  return map;
 }
 
 function findQuestionRow_(sheet, id) {
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return null;
-  const map = getHeaderMap_(sheet);
+  const map = rememberHeaders_(sheet, values[0]);
   for (let i = 1; i < values.length; i += 1) {
     if (String(values[i][map.id] || '') === String(id)) {
       return { rowIndex: i + 1, row: values[i], map };
@@ -1172,7 +1247,7 @@ function listAcidRankingEntries_(group) {
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return [];
 
-  const map = getHeaderMap_(sheet);
+  const map = rememberHeaders_(sheet, values[0]);
   return sortAcidRankingEntries_(values
     .slice(1)
     .map((row) => rowToAcidRankingEntry_(row, map))
@@ -1216,7 +1291,7 @@ function listHistoryCauseRankingEntries_() {
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return [];
 
-  const map = getHeaderMap_(sheet);
+  const map = rememberHeaders_(sheet, values[0]);
   return sortHistoryCauseRankingEntries_(values
     .slice(1)
     .map((row) => rowToHistoryCauseRankingEntry_(row, map))
@@ -1224,7 +1299,10 @@ function listHistoryCauseRankingEntries_() {
 }
 
 function getHistoryCauseRankingGroups_() {
-  const entries = listHistoryCauseRankingEntries_();
+  return historyCauseRankingGroupsFromEntries_(listHistoryCauseRankingEntries_());
+}
+
+function historyCauseRankingGroupsFromEntries_(entries) {
   return {
     overall: entries.slice(0, HISTORY_CAUSE_RANKING_LIMIT),
     korean: entries.filter((entry) => entry.area === '한국사').slice(0, HISTORY_CAUSE_RANKING_LIMIT),
@@ -1437,21 +1515,19 @@ function output_(payload, callback) {
 }
 
 // 프로그램 자료실: 실행 파일과 이미지는 링크만 저장합니다.
-const PROGRAM_HEADERS = ['id', 'createdAt', 'updatedAt', 'title', 'category', 'version', 'windows', 'summary', 'body', 'downloadUrl', 'downloadName'];
+const PROGRAM_HEADERS = ['id', 'createdAt', 'updatedAt', 'title', 'category', 'version', 'windows', 'summary', 'body', 'downloadUrl', 'downloadName', 'viewCount', 'downloadCount'];
 const PROGRAM_COMMENT_HEADERS = ['id', 'programId', 'createdAt', 'updatedAt', 'name', 'text', 'passwordHash', 'admin'];
 
 function getProgramSheet_(comments) {
-  const book = getSpreadsheet_();
   const name = comments ? '프로그램 댓글' : '프로그램 자료실';
-  const sheet = book.getSheetByName(name) || book.insertSheet(name);
-  ensureHeaders_(sheet, comments ? PROGRAM_COMMENT_HEADERS : PROGRAM_HEADERS);
-  return sheet;
+  return requestSheet_(name, (sheet) => ensureHeaders_(sheet, comments ? PROGRAM_COMMENT_HEADERS : PROGRAM_HEADERS));
 }
 
 function programRows_(comments) {
   const sheet = getProgramSheet_(comments);
   const rows = sheet.getDataRange().getValues();
   const headers = rows.shift() || [];
+  rememberHeaders_(sheet, headers);
   return rows.map((row, index) => {
     const item = { rowIndex: index + 2 };
     headers.forEach((key, i) => { item[key] = row[i] instanceof Date ? row[i].toISOString() : row[i]; });
@@ -1464,7 +1540,48 @@ function publicProgram_(item, detail) {
   PROGRAM_HEADERS.forEach((key) => {
     if (detail || key !== 'body') result[key] = String(item[key] || '');
   });
+  Object.assign(result, programStats_(item));
+  result.category = normalizeProgramCategory_(item.category) || '기타';
   return result;
+}
+
+function normalizeProgramCategory_(value) {
+  const category = String(value || '').trim();
+  if (['업무', '교무업무', '학생관리'].includes(category)) return '업무';
+  if (category === '수업') return '수업';
+  if (['기타', '주식'].includes(category)) return '기타';
+  return '';
+}
+
+function programStats_(item) {
+  const count = (value) => Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : 0;
+  return { viewCount: count(item.viewCount), downloadCount: count(item.downloadCount) };
+}
+
+function trackProgram_(params) {
+  const metric = String(params.metric || '');
+  if (!['view', 'download'].includes(metric)) throw new Error('집계 종류가 올바르지 않습니다.');
+  const eventId = String(params.eventId || '');
+  if (!/^[A-Za-z0-9_-]{16,80}$/.test(eventId)) throw new Error('집계 요청 ID가 올바르지 않습니다.');
+  requireTextLength_(params.id, 80, '프로그램 ID');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const item = findProgram_(params.id);
+    const cache = CacheService.getScriptCache();
+    const key = `PROGRAM_EVENT_${item.id}_${metric}_${eventId}`;
+    if (!cache.get(key)) {
+      const stats = programStats_(item);
+      const field = metric === 'view' ? 'viewCount' : 'downloadCount';
+      item[field] = Math.min(Number.MAX_SAFE_INTEGER, stats[field] + 1);
+      // updatedAt을 바꾸지 않으므로 열람만으로 프로그램 업데이트 날짜가 바뀌지 않습니다.
+      const sheet = getProgramSheet_(false);
+      sheet.getRange(item.rowIndex, getHeaderMap_(sheet)[field] + 1).setValue(item[field]);
+      SpreadsheetApp.flush();
+      cache.put(key, '1', 600);
+    }
+    return { id: item.id, stats: programStats_(item) };
+  } finally { lock.releaseLock(); }
 }
 
 function publicProgramComment_(item) {
@@ -1483,8 +1600,24 @@ function listPrograms_() {
 
 function findProgram_(id) {
   requireValue_(id, '프로그램 ID가 없습니다.');
+  const sheet = getProgramSheet_(false);
+  const key = `PROGRAM_ROW_V2_${id}`;
+  const rowIndex = Number(cacheGet_(key));
+  if (Number.isInteger(rowIndex) && rowIndex >= 2 && rowIndex <= sheet.getLastRow()) {
+    const map = getHeaderMap_(sheet);
+    const row = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
+    // 삭제/행 이동 이후의 오래된 위치는 실제 ID를 확인한 뒤에만 사용합니다.
+    if (String(row[map.id]) === String(id)) {
+      const item = { rowIndex };
+      Object.entries(map).forEach(([header, index]) => {
+        item[header] = row[index] instanceof Date ? row[index].toISOString() : row[index];
+      });
+      return item;
+    }
+  }
   const item = programRows_(false).find((row) => row.id === String(id));
   if (!item) throw new Error('게시글을 찾을 수 없습니다.');
+  cachePut_(key, String(item.rowIndex), 300);
   return item;
 }
 
@@ -1511,7 +1644,8 @@ function validateProgram_(params) {
   requireValue_(item.title, '프로그램 이름을 입력하세요.');
   requireValue_(item.body, '소개 내용을 입력하세요.');
   requireValue_(item.summary, '한 줄 소개를 입력하세요.');
-  if (!['주식', '교무업무', '학생관리', '기타'].includes(item.category)) throw new Error('분류를 선택하세요.');
+  item.category = normalizeProgramCategory_(item.category);
+  if (!item.category) throw new Error('분류를 선택하세요.');
   // 홈페이지 파일은 같은 출처의 상대 주소로 저장하여 download 파일명이 적용되도록 합니다.
   const absolute = item.downloadUrl.match(/^(https:\/\/[^/]+)(\/downloads\/.*)$/);
   if (absolute && getAllowedWebOrigins_().includes(absolute[1])) item.downloadUrl = absolute[2];
@@ -1555,7 +1689,8 @@ function saveProgram_(params) {
     const item = Object.assign({}, fields, {
       id: previous ? previous.id : Utilities.getUuid(),
       createdAt: previous ? previous.createdAt : now,
-      updatedAt: now
+      updatedAt: now,
+      ...programStats_(previous || {})
     });
     writeProgramRow_(false, item, previous && previous.rowIndex);
     return { program: publicProgram_(item, true) };

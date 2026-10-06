@@ -3,7 +3,9 @@ const QNA_API_URL = "https://script.google.com/macros/s/AKfycbz0Ip3aJaAailKcmDU4
 window.QNA_CONFIG = {
   apiUrl: QNA_API_URL,
   pageSize: 10,
-  timeoutMs: 15000
+  timeoutMs: 20000,
+  writeTimeoutMs: 45000,
+  retryDelayMs: 600
 };
 
 (() => {
@@ -12,6 +14,7 @@ window.QNA_CONFIG = {
     "list",
     "programList",
     "programDetail",
+    "programTrack",
     "count",
     "visit",
     "acidRankings",
@@ -19,6 +22,12 @@ window.QNA_CONFIG = {
     "ping"
   ]);
   const pendingBridgeRequests = new Map();
+  const readActions = new Set(['list', 'programList', 'programDetail', 'count', 'acidRankings', 'historyCauseRankings', 'ping']);
+  const mutationActions = new Set(['create', 'update', 'answer', 'delete', 'programSave', 'programDelete', 'programCommentSave', 'programCommentDelete', 'acidRankingCreate', 'historyCauseRankingCreate', 'visit']);
+  const inFlightReads = new Map();
+  const readCache = new Map();
+  let cacheEpoch = 0;
+  const storagePrefix = `mysh:data:v3:${config.apiUrl}:`;
   let bridgeFrame = null;
   let bridgeWindow = null;
   let bridgeOrigin = "";
@@ -47,13 +56,17 @@ window.QNA_CONFIG = {
       const callbackName = createRequestId(callbackPrefix);
       const script = document.createElement("script");
       const timeoutId = window.setTimeout(() => {
-        cleanup();
-        reject(new Error(options.timeoutMessage || "응답 시간이 초과되었습니다."));
-      }, Number(config.timeoutMs) || 15000);
+        cleanup(true);
+        reject(Object.assign(new Error(options.timeoutMessage || "연결이 지연되고 있습니다. 잠시 후 다시 불러와 주세요."), { retryable: true }));
+      }, Number(options.timeoutMs || config.timeoutMs) || 20000);
 
-      function cleanup() {
+      function cleanup(lateResponse = false) {
         window.clearTimeout(timeoutId);
-        delete window[callbackName];
+        if (lateResponse) {
+          // 제거된 script 요청의 늦은 응답이 실행돼도 ReferenceError가 나지 않게 합니다.
+          window[callbackName] = () => {};
+          window.setTimeout(() => { delete window[callbackName]; }, 60000);
+        } else delete window[callbackName];
         script.remove();
       }
 
@@ -75,8 +88,8 @@ window.QNA_CONFIG = {
 
       script.async = true;
       script.onerror = () => {
-        cleanup();
-        reject(new Error(options.connectionErrorMessage || "데이터에 연결하지 못했습니다."));
+        cleanup(true);
+        reject(Object.assign(new Error(options.connectionErrorMessage || "데이터에 연결하지 못했습니다."), { retryable: true }));
       };
       script.src = url.toString();
       document.head.appendChild(script);
@@ -142,7 +155,7 @@ window.QNA_CONFIG = {
         bridgeFrame = null;
         bridgeWindow = null;
         bridgeOrigin = "";
-      }, Number(config.timeoutMs) || 15000);
+      }, Number(config.writeTimeoutMs) || 45000);
 
       function waitForBridgeReady(event) {
         if (!bridgeFrame || !isTrustedBridgeOrigin(event.origin)) return;
@@ -173,8 +186,10 @@ window.QNA_CONFIG = {
     return new Promise((resolve, reject) => {
       const timeoutId = window.setTimeout(() => {
         pendingBridgeRequests.delete(id);
-        reject(new Error(options.timeoutMessage || "응답 시간이 초과되었습니다."));
-      }, Number(config.timeoutMs) || 15000);
+        reject(new Error(mutationActions.has(action)
+          ? '저장 결과 확인이 지연되고 있습니다. 다시 저장하기 전에 목록을 새로고침해 반영 여부를 확인해 주세요.'
+          : (options.timeoutMessage || '연결이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.')));
+      }, Number(config.writeTimeoutMs) || 45000);
 
       pendingBridgeRequests.set(id, {
         resolve,
@@ -193,14 +208,76 @@ window.QNA_CONFIG = {
     });
   }
 
+  function clearReadCache() {
+    cacheEpoch += 1;
+    readCache.clear();
+    inFlightReads.clear();
+    try {
+      for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
+        const key = window.sessionStorage.key(i);
+        if (key?.startsWith(storagePrefix)) window.sessionStorage.removeItem(key);
+      }
+    } catch { /* 저장소 제한 환경에서도 네트워크 요청은 동작합니다. */ }
+  }
+
+  function cachedRead(key) {
+    try {
+      const entry = readCache.get(key) || JSON.parse(window.sessionStorage.getItem(storagePrefix + key) || 'null');
+      if (entry && entry.expiresAt > Date.now()) return JSON.parse(entry.json);
+    } catch { /* 캐시가 없으면 서버에서 읽습니다. */ }
+    return null;
+  }
+
+  async function runRead(action, params, options, key, epoch) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const payload = await requestByJsonp(action, params, options);
+        const ttl = action === 'count' ? 5000 : 10000;
+        const json = JSON.stringify(payload);
+        if (epoch === cacheEpoch && json.length <= 100000 && action !== 'ping') {
+          const entry = { json, expiresAt: Date.now() + ttl };
+          readCache.set(key, entry);
+          try { window.sessionStorage.setItem(storagePrefix + key, JSON.stringify(entry)); } catch { /* 메모리 캐시 사용 */ }
+        }
+        return payload;
+      } catch (error) {
+        if (!error.retryable || attempt === 1) throw error;
+        await new Promise((resolve) => window.setTimeout(resolve, Number(config.retryDelayMs) || 600));
+      }
+    }
+  }
+
   function request(action, params = {}, options = {}) {
     if (!isConfigured()) {
       return Promise.reject(new Error(options.notConfiguredMessage || "데이터 연결 주소를 설정하세요."));
     }
-    return jsonpActions.has(action)
+    if (readActions.has(action)) {
+      const key = JSON.stringify([action, Object.entries(params).sort(([a], [b]) => a.localeCompare(b))]);
+      if (!options.forceRefresh) {
+        const cached = cachedRead(key);
+        if (cached) return Promise.resolve(cached);
+        if (inFlightReads.has(key)) return inFlightReads.get(key);
+      }
+      const task = runRead(action, params, options, key, cacheEpoch).finally(() => {
+        if (inFlightReads.get(key) === task) inFlightReads.delete(key);
+      });
+      inFlightReads.set(key, task);
+      return task;
+    }
+    const mutation = mutationActions.has(action);
+    if (mutation) clearReadCache();
+    const task = jsonpActions.has(action)
       ? requestByJsonp(action, params, options)
       : requestByBridge(action, params, options);
+    // 쓰기 요청은 타임아웃이어도 자동 재전송하지 않습니다(중복 글/방문 집계 방지).
+    return mutation ? task.finally(clearReadCache) : task;
   }
+
+  document.addEventListener('focusin', (event) => {
+    if (event.target.closest?.('#qnaForm, #programForm, #programCommentForm, #programDeleteForm, #questionDetail form')) {
+      if (isConfigured()) ensureBridge().catch(() => {});
+    }
+  });
 
   window.DATA_API = Object.freeze({
     isConfigured,
