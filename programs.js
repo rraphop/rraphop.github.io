@@ -182,7 +182,7 @@
       <p class="program-meta">등록 ${escape(date(active.createdAt))} · 업데이트 ${escape(date(active.updatedAt))}</p>
       ${statsHtml(active)}
       <p id="programStatsMessage" class="program-meta" role="status"></p>
-      <div class="program-download"><p>${escape(active.version ? `버전 ${active.version} · ` : '')}${escape(active.windows || 'Windows용 프로그램')}</p>${downloadName ? `<p class="program-meta">다운로드 파일: ${escape(downloadName)}</p>` : ''}${url ? `<a class="button primary" data-program-download href="${escape(url)}" ${linkAttributes}>프로그램 다운로드 ${info.local ? '↓' : '↗'}</a><p class="program-download-note">다운로드수는 이 버튼을 누른 횟수입니다.</p>` : '<p>다운로드 주소를 확인해 주세요.</p>'}</div>
+      <div class="program-download"><p>${escape(active.version ? `버전 ${active.version} · ` : '')}${escape(active.windows || 'Windows용 프로그램')}</p>${downloadName ? `<p class="program-meta">다운로드 파일: ${escape(downloadName)}</p>` : ''}${url ? `<a class="button primary" data-program-download href="${escape(url)}" ${linkAttributes}>프로그램 다운로드 ${info.local ? '↓' : '↗'}</a>` : '<p>다운로드 주소를 확인해 주세요.</p>'}</div>
       <div class="program-body">${bodyHtml(active.body)}</div>`;
     renderImages($('programDetail'));
     renderComments();

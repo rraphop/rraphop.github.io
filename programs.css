@@ -23,7 +23,6 @@
 .program-meta { font-size: .88rem; }
 .program-stats { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: .88rem; }
 .program-stats strong { color: var(--accent-dark); font-variant-numeric: tabular-nums; }
-.program-download .program-download-note { margin: 10px 0 0; font-size: .82rem; color: var(--muted); }
 #programStatsMessage:empty { display: none; }
 .program-help { margin: -5px 0 0; font-size: .9rem; }
 .program-empty { padding: 56px 24px; text-align: center; border: 1px dashed #bdccca; border-radius: 16px; grid-column: 1 / -1; }
